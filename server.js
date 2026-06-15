@@ -1026,12 +1026,10 @@ app.post("/creator/applications", async (req, res) => {
       !cleanAbout ||
       !cleanPassword
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Name, email, phone, event type, about, and password are required",
-        });
+      return res.status(400).json({
+        error:
+          "Name, email, phone, event type, about, and password are required",
+      });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       return res
@@ -1065,12 +1063,10 @@ app.post("/creator/applications", async (req, res) => {
         .trim()
         .toLowerCase();
       if (!allowedTypes.has(documentType) || !file.fileName || !file.dataUrl) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Each KYC document must include a valid type, file name, and file data",
-          });
+        return res.status(400).json({
+          error:
+            "Each KYC document must include a valid type, file name, and file data",
+        });
       }
       const asset = await saveAsset({
         fileName: file.fileName,
@@ -1196,7 +1192,7 @@ app.get("/events", async (req, res) => {
   try {
     const result = await pool.query(
       `${creatorEventSalesQuery}
-       WHERE e.status='live' AND e.visibility='Public'
+       WHERE e.status IN ('live', 'upcoming') AND e.visibility='Public'
        GROUP BY e.id
        ORDER BY e.created_at DESC`,
     );
@@ -1269,12 +1265,10 @@ app.post("/creator/events", requireCreator, async (req, res) => {
       !city ||
       !Number(capacity)
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Complete the event details, date, time, venue, city, and capacity",
-        });
+      return res.status(400).json({
+        error:
+          "Complete the event details, date, time, venue, city, and capacity",
+      });
     }
     if (!banner || !bannerKey) {
       return res
@@ -1324,12 +1318,10 @@ app.post("/creator/events", requireCreator, async (req, res) => {
     if (!result.rows.length) {
       throw new Error("Event was not saved in the database");
     }
-    res
-      .status(201)
-      .json({
-        message: "Event published successfully",
-        event: publicCreatorEvent(result.rows[0]),
-      });
+    res.status(201).json({
+      message: "Event published successfully",
+      event: publicCreatorEvent(result.rows[0]),
+    });
   } catch (err) {
     console.error("Creator event publish failed:", err);
     res.status(500).json({ error: err.message || "Event publish failed" });
@@ -1483,12 +1475,10 @@ app.post("/creator/staff", requireCreator, async (req, res) => {
       .toLowerCase();
     const cleanPassword = String(password || "");
     if (!name || !cleanStaffId || cleanPassword.length < 6) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Name, login ID, and a temporary password of at least 6 characters are required",
-        });
+      return res.status(400).json({
+        error:
+          "Name, login ID, and a temporary password of at least 6 characters are required",
+      });
     }
     await client.query("BEGIN");
     const id = `STF-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
@@ -1699,12 +1689,10 @@ app.post(
         resalePrice: req.body && req.body.resalePrice,
       });
       await client.query("COMMIT");
-      res
-        .status(201)
-        .json({
-          message: "Tickets assigned successfully",
-          assignment: publicStaffAssignment(assignment),
-        });
+      res.status(201).json({
+        message: "Tickets assigned successfully",
+        assignment: publicStaffAssignment(assignment),
+      });
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("Creator staff assignment failed:", err);
@@ -2109,12 +2097,10 @@ app.post("/staff/withdrawals", requireStaff, async (req, res) => {
       method === "bank" &&
       (!bankAccountName || !bankAccountNumber || !bankIfsc)
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Add bank account name, account number, and IFSC before withdrawal",
-        });
+      return res.status(400).json({
+        error:
+          "Add bank account name, account number, and IFSC before withdrawal",
+      });
     }
     if (method === "upi" && !upiId) {
       return res.status(400).json({ error: "Add a UPI ID before withdrawal" });
@@ -2345,6 +2331,46 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
   }
 });
 
+// Update event status (pause/block/resume)
+app.patch("/admin/events/:eventId/status", requireAdmin, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { status } = req.body || {};
+
+    if (!eventId || !status) {
+      return res.status(400).json({ error: "eventId and status are required" });
+    }
+
+    // Validate status value
+    const validStatuses = [
+      "live",
+      "paused",
+      "blocked",
+      "completed",
+      "cancelled",
+    ];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    const result = await pool.query(
+      "UPDATE creator_events SET status=$1 WHERE id=$2 RETURNING *",
+      [status, eventId],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({ success: true, event: publicCreatorEvent(result.rows[0]) });
+  } catch (err) {
+    console.error("Event status update failed:", err);
+    res.status(500).json({ error: "Could not update event status" });
+  }
+});
+
 app.get("/r2/media/*key", (req, res) => {
   try {
     const key = Array.isArray(req.params.key)
@@ -2537,6 +2563,41 @@ app.post("/payments/payu/initiate", async (req, res) => {
         .json({ error: "Valid amount in rupees is required" });
     }
 
+    // Validate event status before initiating payment
+    const { bookingId } = req.body;
+    if (bookingId) {
+      const bookingResult = await pool.query(
+        "SELECT event_id FROM bookings WHERE id=$1",
+        [bookingId],
+      );
+
+      if (bookingResult.rows.length) {
+        const eventId = bookingResult.rows[0].event_id;
+        if (eventId) {
+          const eventResult = await pool.query(
+            "SELECT id, status FROM creator_events WHERE id=$1",
+            [eventId],
+          );
+
+          if (eventResult.rows.length) {
+            const event = eventResult.rows[0];
+            const blockedStatuses = [
+              "paused",
+              "blocked",
+              "cancelled",
+              "completed",
+            ];
+            if (blockedStatuses.includes(event.status)) {
+              return res.status(403).json({
+                error: `Payment cannot be initiated. Event status: ${event.status}`,
+                eventStatus: event.status,
+              });
+            }
+          }
+        }
+      }
+    }
+
     const origin = `${req.protocol}://${req.get("host")}`;
     const txnid = String(
       req.body.txnid ||
@@ -2657,6 +2718,29 @@ app.post("/bookings", async (req, res) => {
     const booking = req.body || {};
     if (!booking.id) {
       return res.status(400).json({ error: "booking.id is required" });
+    }
+
+    // Validate event status - prevent booking if event is paused, blocked, or cancelled
+    if (booking.eventId) {
+      const eventResult = await client.query(
+        "SELECT id, status, name FROM creator_events WHERE id=$1",
+        [booking.eventId],
+      );
+
+      if (!eventResult.rows.length) {
+        await client.release();
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      const event = eventResult.rows[0];
+      const blockedStatuses = ["paused", "blocked", "cancelled", "completed"];
+      if (blockedStatuses.includes(event.status)) {
+        await client.release();
+        return res.status(403).json({
+          error: `Bookings are not allowed for this event. Event status: ${event.status}`,
+          eventStatus: event.status,
+        });
+      }
     }
 
     const ticketJson = `data:application/json;base64,${Buffer.from(
@@ -3130,11 +3214,9 @@ const sendSignupOtp = async (req, res) => {
       "",
     );
     if (!/^91\d{10}$/.test(identifier)) {
-      return res
-        .status(400)
-        .json({
-          error: "A valid India mobile number with country code is required",
-        });
+      return res.status(400).json({
+        error: "A valid India mobile number with country code is required",
+      });
     }
     const params = new URLSearchParams({
       To: `+${identifier}`,
@@ -3168,12 +3250,10 @@ const verifySignupOtp = async (req, res) => {
     );
     const otp = String((req.body && req.body.otp) || "").trim();
     if (!/^91\d{10}$/.test(identifier) || !/^\d{4,8}$/.test(otp)) {
-      return res
-        .status(400)
-        .json({
-          verified: false,
-          error: "A valid mobile number and OTP are required",
-        });
+      return res.status(400).json({
+        verified: false,
+        error: "A valid mobile number and OTP are required",
+      });
     }
     const params = new URLSearchParams({
       To: `+${identifier}`,
@@ -3201,12 +3281,10 @@ const verifySignupOtp = async (req, res) => {
     });
   } catch (err) {
     console.error("Twilio OTP verification failed:", err);
-    res
-      .status(err.status || 500)
-      .json({
-        verified: false,
-        error: err.message || "Twilio OTP verification failed",
-      });
+    res.status(err.status || 500).json({
+      verified: false,
+      error: err.message || "Twilio OTP verification failed",
+    });
   }
 };
 
@@ -3222,17 +3300,17 @@ const verifySignupOtpAccessToken = async (req, res) => {
     }
     const payload = verifyJwt(accessToken);
     if (payload.scope !== "signup-phone-otp") {
-      return res.status(400).json({ verified: false, error: "Invalid OTP token" });
+      return res
+        .status(400)
+        .json({ verified: false, error: "Invalid OTP token" });
     }
     res.json({ verified: true, data: payload });
   } catch (err) {
     console.error("OTP token verification failed:", err);
-    res
-      .status(err.status || 500)
-      .json({
-        verified: false,
-        error: err.message || "OTP token verification failed",
-      });
+    res.status(err.status || 500).json({
+      verified: false,
+      error: err.message || "OTP token verification failed",
+    });
   }
 };
 
@@ -3276,12 +3354,10 @@ app.post("/signup", async (req, res) => {
       return res.status(400).json({ error: "Phone number is required" });
     }
     if (!otpAccessToken) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Please verify your phone number with OTP before creating an account",
-        });
+      return res.status(400).json({
+        error:
+          "Please verify your phone number with OTP before creating an account",
+      });
     }
     await verifySignupOtpToken(otpAccessToken, cleanCountryCode, cleanPhone);
 
