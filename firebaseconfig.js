@@ -101,6 +101,9 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
   try {
     if (normalizeLocalAuthOrigin()) return;
     markGooglePending();
+    if (window.VYBERA_GOOGLE_USE_REDIRECT === true) {
+      return signInWithRedirect(auth, googleProvider);
+    }
     const result = await signInWithPopup(auth, googleProvider);
     return finishGoogleUser(result.user);
   } catch (err) {
@@ -111,7 +114,11 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
       return;
     }
 
-    if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
+    if (
+      err.code === "auth/popup-blocked" ||
+      err.code === "auth/operation-not-supported-in-this-environment" ||
+      err.code === "auth/internal-error"
+    ) {
       markGooglePending();
       return signInWithRedirect(auth, googleProvider);
     }
