@@ -405,11 +405,6 @@ window.VYBERA_DEBUG=false;
 if(!window.VYBERA_DEBUG&&window.console){
   ['log','debug','info','warn','error'].forEach(function(k){window.console[k]=function(){};});
 }
-try{
-  if(localStorage.getItem('VYBERA_BUYER_TOKEN')&&sessionStorage.getItem('VYBERA_GUEST_MODE')!=='1'){
-    document.body.classList.add('session-restoring');
-  }
-}catch(_){}
 </script>
 <script>
 window.addEventListener('DOMContentLoaded', function(){
@@ -682,7 +677,7 @@ window.addEventListener('DOMContentLoaded', function(){
 </div>
 </div>
 <div class="sticky-cta visible">
-<div class="sticky-cta-inner" onclick="showPage('page-booking')">
+<div class="sticky-cta-inner" onclick="beginBookingFlow()">
 <div><div style="font-size:11px;color:rgba(255,255,255,.7)">Starting from</div><div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700" id="ctaPrice">—</div></div>
 <button class="btn-red" style="padding:10px 20px;pointer-events:none">Book Ticket →</button>
 </div>
@@ -2145,7 +2140,7 @@ async function doSignUp(){
     });
     var data = await readAuthResponse(resp);
     if(!resp.ok){ throw new Error(data.error || 'Signup failed'); }
-    alert(data.message || 'Signup successful');
+    showToast(data.message || 'Account created! Signing you in…');
     var fullName=(first.value.trim()+' '+(last&&last.value.trim()||'')).trim();
     var pn=document.getElementById('profileName');if(pn)pn.textContent=fullName;
     var pe=document.getElementById('profileEmail');if(pe)pe.textContent=email.value.trim();
@@ -2161,10 +2156,10 @@ async function doSignUp(){
       var loginEmail=document.getElementById('siEmail');if(loginEmail)loginEmail.value = email.value.trim();
       var loginPassword=document.getElementById('siPassword');if(loginPassword)loginPassword.value = password.value;
       switchAuthTab('signin');
-      alert('This email already has an account. Sign in with your email and password.');
+      showToast('This email already has an account. Sign in with your email and password.');
       return;
     }
-    alert(err.message || 'Signup failed');
+    showToast(err.message || 'Signup failed');
   }finally{
     setButtonBusy('signupBtn',false,null,'Create Account');
   }
@@ -2252,14 +2247,77 @@ function checkPasswordStrength(val){
   if(label){label.textContent=val.length>0?(lbls[score-1]||''):'';label.style.color=score>0?cols[score-1]:'rgba(255,255,255,0.3)';}
 }
 
-function quickLogin(){
+function setActiveAuthRole(role){
+  var tokens={admin:'VYBERA_ADMIN_TOKEN',staff:'VYBERA_STAFF_TOKEN',creator:'VYBERA_CREATOR_TOKEN',buyer:'VYBERA_BUYER_TOKEN'};
+  Object.keys(tokens).forEach(function(key){
+    if(key!==role)localStorage.removeItem(tokens[key]);
+  });
+  if(role!=='admin'){localStorage.removeItem('VYBERA_ADMIN_PROFILE');STORE.currentAdmin=null;}
+  if(role!=='staff'){STORE.currentStaff=null;}
+  if(role!=='creator'){localStorage.removeItem('VYBERA_CREATOR_PROFILE');STORE.creatorProfile=null;}
+  if(role!=='buyer'){STORE.currentUser=null;localStorage.removeItem('VYBERA_BUYER_PROFILE');}
+  sessionStorage.removeItem('VYBERA_GUEST_MODE');
+}
+function markGoogleLoginPending(){
+  var now=String(Date.now());
+  sessionStorage.setItem('VYBERA_GOOGLE_PENDING','1');
+  sessionStorage.setItem('VYBERA_GOOGLE_PENDING_AT',now);
+  localStorage.setItem('VYBERA_GOOGLE_PENDING','1');
+  localStorage.setItem('VYBERA_GOOGLE_PENDING_AT',now);
+}
+function hasGoogleLoginPending(){
+  var flagged=sessionStorage.getItem('VYBERA_GOOGLE_PENDING')==='1'||localStorage.getItem('VYBERA_GOOGLE_PENDING')==='1';
+  if(!flagged)return false;
+  var at=Number(sessionStorage.getItem('VYBERA_GOOGLE_PENDING_AT')||localStorage.getItem('VYBERA_GOOGLE_PENDING_AT')||0);
+  if(!at||Date.now()-at>2*60*1000){clearGoogleLoginPending();return false;}
+  return true;
+}
+function clearGoogleLoginPending(){
   sessionStorage.removeItem('VYBERA_GOOGLE_PENDING');
+  sessionStorage.removeItem('VYBERA_GOOGLE_PENDING_AT');
+  localStorage.removeItem('VYBERA_GOOGLE_PENDING');
+  localStorage.removeItem('VYBERA_GOOGLE_PENDING_AT');
+}
+window.clearGoogleLoginPending=clearGoogleLoginPending;
+window.markGoogleLoginPending=markGoogleLoginPending;
+async function completeBuyerLogin(user,token,options){
+  options=options||{};
+  clearGoogleLoginPending();
+  sessionStorage.removeItem('VYBERA_GUEST_MODE');
+  localStorage.setItem('VYBERA_BUYER_TOKEN',token||'');
+  if(user)localStorage.setItem('VYBERA_BUYER_PROFILE',JSON.stringify(user));
+  setActiveAuthRole('buyer');
+  applyBuyerProfile(user||{});
+  clearSessionRestoring();
+  var _url=new URL(window.location.href);
+  if(_url.searchParams.has('google')){
+    _url.searchParams.delete('google');
+    window.history.replaceState(null,'',_url.pathname+_url.search+_url.hash);
+  }
+  document.body.classList.remove('on-splash','on-login');
+  if(!options.skipNavigate && !continueAfterBuyerAuth()){
+    navigateBuyerHome();
+  }
+  try{
+    await loadBuyerBookingHistory();
+    await loadProfileCreatorEvents();
+    renderProfileBookingHistory();
+    renderProfileCreatorEvents();
+  }catch(err){
+    console.error('Post-login profile sync failed:',err);
+  }
+  return true;
+}
+function quickLogin(){
+  clearGoogleLoginPending();
   sessionStorage.removeItem('VYBERA_AFTER_AUTH');
   sessionStorage.setItem('VYBERA_GUEST_MODE','1');
   localStorage.removeItem('VYBERA_BUYER_TOKEN');
   localStorage.removeItem('VYBERA_CREATOR_TOKEN');
   localStorage.removeItem('VYBERA_ADMIN_TOKEN');
   localStorage.removeItem('VYBERA_STAFF_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_PROFILE');
+  localStorage.removeItem('VYBERA_CREATOR_PROFILE');
   document.body.classList.remove('creator-mode');
   document.body.classList.add('guest-mode');
   STORE.currentUser=null;
@@ -2334,7 +2392,10 @@ async function loginAsCreator(){
     var account = data.creator || {};
     STORE.creatorProfile = account;
     STORE.currentUser = account.email;
+    clearGoogleLoginPending();
+    setActiveAuthRole('creator');
     localStorage.setItem('VYBERA_CREATOR_TOKEN', data.token || '');
+    localStorage.setItem('VYBERA_CREATOR_PROFILE', JSON.stringify(account));
     await loadCreatorEvents();
     await loadCreatorStaff();
     await loadCreatorAnalytics();
@@ -2408,6 +2469,8 @@ async function loginStaffFromApi(staffId,password){
     throw err;
   }
   applyStaffPayload(data);
+  clearGoogleLoginPending();
+  setActiveAuthRole('staff');
   localStorage.setItem('VYBERA_STAFF_TOKEN',data.token||'');
   return STORE.currentStaff;
 }
@@ -2452,7 +2515,7 @@ function isEventCompletedForStaff(event){
 }
 function canStaffSellAssignment(assignment){
   var event=(STORE.events||[]).find(function(item){return item.id===assignment.eventId;});
-  return event && event.status==='live' && !isEventCompletedForStaff(event);
+  return isEventBookable(event) && !isEventCompletedForStaff(event);
 }
 function getAssignmentMode(assignment){
   return assignment && (assignment.mode||assignment.allocationMode||assignment.type)==='staff_owned' ? 'staff_owned' : 'creator_quota';
@@ -2620,7 +2683,8 @@ function staffReadOnlyReason(assignment){
   var event=(STORE.events||[]).find(function(item){return item.id===assignment.eventId;});
   if(!event) return 'Event data is unavailable';
   if(isEventCompletedForStaff(event)) return 'Event completed. Selling and withdrawals are locked.';
-  if(event.status!=='live') return 'Event is not live. Selling is locked.';
+  if(event._salesPaused) return 'Ticket sales are paused for this event.';
+  if(event.status!=='live') return 'Event is '+event.status+'. Selling is locked.';
   return '';
 }
 function staffHasActiveSellingEvent(){
@@ -2700,12 +2764,37 @@ async function refreshCreatorStaffManageData(){
   return creatorStaffRefreshRequest;
 }
 function signOut(){
-  document.body.classList.remove('creator-mode');
+  if(!confirm("Are you sure you want to sign out?")) return;
+  clearGoogleLoginPending();
+  localStorage.removeItem('VYBERA_BUYER_TOKEN');
+  localStorage.removeItem('VYBERA_BUYER_PROFILE');
+  localStorage.removeItem('VYBERA_CREATOR_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+  localStorage.removeItem('VYBERA_STAFF_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_PROFILE');
+  localStorage.removeItem('VYBERA_CREATOR_PROFILE');
+  sessionStorage.removeItem('VYBERA_GUEST_MODE');
+  document.body.classList.remove('creator-mode','guest-mode');
   STORE.currentUser=null;
+  STORE.creatorProfile=null;
+  STORE.currentStaff=null;
+  STORE.currentAdmin=null;
+  if(typeof window.vyberaFirebaseSignOut==='function'){
+    window.vyberaFirebaseSignOut();
+  }
+  var url=new URL(window.location.href);
+  if(url.searchParams.has('google')){
+    url.searchParams.delete('google');
+    window.history.replaceState(null,'',url.pathname+url.search+url.hash);
+  }
   var pl=document.getElementById('payoutSettingsLink');
   if(pl)pl.style.display='none';
-  document.getElementById('financeSection').style.display='none';
-  document.getElementById('financeLock').style.display='block';
+  var financeSection=document.getElementById('financeSection');
+  if(financeSection)financeSection.style.display='none';
+  var financeLock=document.getElementById('financeLock');
+  if(financeLock)financeLock.style.display='block';
+  applyGuestProfile();
+  clearSessionRestoring();
   showPage('page-splash');
   pageHistory=['page-splash'];
 }
@@ -3187,7 +3276,18 @@ function updateEventReviewSection(ev){
 }
 
 // ── OPEN EVENT DETAIL ──
+function isEventBookable(event){
+  if(!event) return false;
+  if(event._salesPaused) return false;
+  return event.status==='live';
+}
 function openEventDetail(ev) {
+  if(!ev){showToast('Event not found');return;}
+  if(!isEventBookable(ev)){
+    var reason=ev.status&&ev.status!=='live'?'This event is '+ev.status+'.':'Ticket sales are paused for this event.';
+    showToast(reason+' Booking is not available.');
+    return;
+  }
   CURRENT_EVENT = ev;
   // Populate detail page
   var tags = document.getElementById('detailTags');
@@ -3236,6 +3336,14 @@ function openEventDetail(ev) {
 }
 
 // ── BOOKING TICKETS ──
+function beginBookingFlow(){
+  if(!CURRENT_EVENT){showToast('Select an event first');return;}
+  if(!isEventBookable(CURRENT_EVENT)){
+    showToast('This event is not available for booking right now.');
+    return;
+  }
+  showPage('page-booking');
+}
 function populateBookingTickets(ev) {
   var step1 = document.getElementById('bstep1');
   if(!step1) return;
@@ -3400,6 +3508,10 @@ function submitPayUForm(action, fields){
 
 async function payWithPayU(){
   if(!CURRENT_EVENT){ showToast('Select an event first'); return; }
+  if(!isEventBookable(CURRENT_EVENT)){
+    showToast('This event is not available for booking right now.');
+    return;
+  }
   var selected=document.querySelector('.ticket-option.selected');
   var tierName=selected?selected.getAttribute('data-name'):(CURRENT_EVENT.tickets[0]||{}).name||'General';
   var totals=getCurrentBookingTotals();
@@ -3580,7 +3692,10 @@ function getProfileIdentityToken(){
   return localStorage.getItem('VYBERA_BUYER_TOKEN')||localStorage.getItem('VYBERA_CREATOR_TOKEN')||'';
 }
 function clearRejectedProfileToken(token){
-  if(localStorage.getItem('VYBERA_BUYER_TOKEN')===token)localStorage.removeItem('VYBERA_BUYER_TOKEN');
+  if(localStorage.getItem('VYBERA_BUYER_TOKEN')===token){
+    localStorage.removeItem('VYBERA_BUYER_TOKEN');
+    localStorage.removeItem('VYBERA_BUYER_PROFILE');
+  }
   if(localStorage.getItem('VYBERA_CREATOR_TOKEN')===token)localStorage.removeItem('VYBERA_CREATOR_TOKEN');
 }
 function applyBuyerProfile(user){
@@ -3593,8 +3708,89 @@ function applyBuyerProfile(user){
   var av=document.querySelector('.profile-avatar');
   if(av)av.textContent=userName.split(' ').map(function(word){return word[0];}).join('').substring(0,2).toUpperCase();
 }
+async function bootstrapAuth(){
+  try{
+    hasGoogleLoginPending();
+    if(sessionStorage.getItem('VYBERA_GUEST_MODE')==='1')return;
+    if(localStorage.getItem('VYBERA_BUYER_TOKEN'))clearGoogleLoginPending();
+    var _payuPending=!!localStorage.getItem('VYBERA_PAYU_RESULT');
+
+    var adminToken=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    if(adminToken){
+      try{
+        var adminProfile=JSON.parse(localStorage.getItem('VYBERA_ADMIN_PROFILE')||'null');
+        if(adminProfile)STORE.currentAdmin=adminProfile;
+        await loadAdminSnapshot();
+        enterAdminPanel();
+        return;
+      }catch(err){
+        localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+        localStorage.removeItem('VYBERA_ADMIN_PROFILE');
+        STORE.currentAdmin=null;
+      }
+    }
+
+    var staffToken=localStorage.getItem('VYBERA_STAFF_TOKEN')||'';
+    var creatorToken=localStorage.getItem('VYBERA_CREATOR_TOKEN')||'';
+    if(staffToken&&!creatorToken){
+      try{
+        await refreshStaffData();
+        enterStaffPanel();
+        return;
+      }catch(err){
+        localStorage.removeItem('VYBERA_STAFF_TOKEN');
+        STORE.currentStaff=null;
+      }
+    }
+
+    if(creatorToken){
+      try{
+        var creatorProfile=JSON.parse(localStorage.getItem('VYBERA_CREATOR_PROFILE')||'null');
+        if(creatorProfile)STORE.creatorProfile=creatorProfile;
+        await loadCreatorEvents();
+        await loadCreatorStaff();
+        document.body.classList.add('creator-mode');
+        var creatorNav=document.getElementById('creatorNavBar');
+        if(creatorNav)creatorNav.style.display='flex';
+        showPage('page-creator');
+        refreshCreatorDashboard();
+        return;
+      }catch(err){
+        localStorage.removeItem('VYBERA_CREATOR_TOKEN');
+        localStorage.removeItem('VYBERA_CREATOR_PROFILE');
+        STORE.creatorProfile=null;
+      }
+    }
+
+    var buyerToken=localStorage.getItem('VYBERA_BUYER_TOKEN')||'';
+    if(!buyerToken)return;
+
+    var cachedUser=null;
+    try{cachedUser=JSON.parse(localStorage.getItem('VYBERA_BUYER_PROFILE')||'null');}catch(err){cachedUser=null;}
+
+    try{
+      var resp=await fetch(apiUrl('/session'),{headers:{Authorization:'Bearer '+buyerToken}});
+      var data=await readAuthResponse(resp);
+      if(resp.ok){
+        await completeBuyerLogin(data.user,buyerToken,{skipNavigate:_payuPending});
+        return;
+      }
+      if(resp.status===401)localStorage.removeItem('VYBERA_BUYER_TOKEN');
+    }catch(err){
+      if(cachedUser&&buyerToken){
+        await completeBuyerLogin(cachedUser,buyerToken,{skipNavigate:_payuPending});
+        return;
+      }
+      localStorage.removeItem('VYBERA_BUYER_TOKEN');
+      localStorage.removeItem('VYBERA_BUYER_PROFILE');
+    }
+  }finally{
+    clearSessionRestoring();
+  }
+}
 async function restoreBuyerSession(){
   if(sessionStorage.getItem('VYBERA_GUEST_MODE')==='1'){clearSessionRestoring();return false;}
+  if(localStorage.getItem('VYBERA_ADMIN_TOKEN')||localStorage.getItem('VYBERA_STAFF_TOKEN')||localStorage.getItem('VYBERA_CREATOR_TOKEN')){clearSessionRestoring();return false;}
   var token=localStorage.getItem('VYBERA_BUYER_TOKEN')||'';
   if(!token){clearSessionRestoring();return false;}
   try{
@@ -3608,7 +3804,8 @@ async function restoreBuyerSession(){
     renderProfileCreatorEvents();
     var active=document.querySelector('.page.active');
     var activeId=active&&active.id;
-    if(activeId==='page-splash'||activeId==='page-login')navigateBuyerHome();
+    var _payuPending=!!localStorage.getItem('VYBERA_PAYU_RESULT');
+    if((activeId==='page-splash'||activeId==='page-login') && !_payuPending)navigateBuyerHome();
     clearSessionRestoring();
     return true;
   }catch(err){
@@ -4050,7 +4247,7 @@ function makeCard(ev){
 }
 
 function isPublicLiveEvent(event){
-  return event._persistedCreatorEvent && event.status==='live' && (!event.visibility || event.visibility==='Public');
+  return event._persistedCreatorEvent && isEventBookable(event) && (!event.visibility || event.visibility==='Public');
 }
 
 function isFreeEvent(event){
@@ -5366,7 +5563,7 @@ function enterStaffPanel(){
   try{switchStaffTab('overview');}catch(err){console.error('Staff tab refresh failed:',err);}
 }
 
-function signOutStaff(){STORE.currentStaff=null;document.body.classList.remove('on-splash');showPage('page-splash');}
+function signOutStaff(){STORE.currentStaff=null;localStorage.removeItem('VYBERA_STAFF_TOKEN');document.body.classList.remove('on-splash');showPage('page-splash');}
 
 function refreshStaffDashboard(){
   var st=STORE.currentStaff;if(!st)return;
@@ -5777,9 +5974,12 @@ async function doLogin(){
         });
         var adminData=await readAuthResponse(adminResp);
         if(adminResp.ok){
+          clearGoogleLoginPending();
+          setActiveAuthRole('admin');
           STORE.currentAdmin=adminData.admin;
           STORE.adminUsers=[adminData.admin];
           localStorage.setItem('VYBERA_ADMIN_TOKEN',adminData.token||'');
+          localStorage.setItem('VYBERA_ADMIN_PROFILE',JSON.stringify(adminData.admin||{}));
           await loadAdminSnapshot();
           emailEl.value='';pwdEl.value='';
           enterAdminPanel();
@@ -5799,15 +5999,10 @@ async function doLogin(){
           return;
         }
       } catch(staffApiErr) {
-        var looksLikeStaffId=enteredId.indexOf('@')===-1;
-        var staffExists=looksLikeStaffId ? true : await staffAccountExists(enteredId);
+        var staffExists=false;
+        try{staffExists=await staffAccountExists(enteredId);}catch(lookupErr){staffExists=false;}
         if(staffExists){
-          alert(staffApiErr.message || 'Invalid staff login ID or password');
-          setButtonBusy('loginBtn',false,null,'Sign In');
-          return;
-        }
-        if(looksLikeStaffId || staffApiErr.staffNotFound){
-          alert('Staff account not found. Use the staff email/login ID created by the creator.');
+          showToast(staffApiErr.message || 'Invalid staff login ID or password');
           setButtonBusy('loginBtn',false,null,'Sign In');
           return;
         }
@@ -5826,27 +6021,13 @@ async function doLogin(){
         });
         var data = await readAuthResponse(resp);
         if(!resp.ok){ throw new Error(data.error || 'Login failed'); }
-        alert(data.message || 'Login successful');
-        var user = data.user || {};
-        var userName = user.username || [user.firstName,user.lastName].filter(Boolean).join(' ') || enteredId;
-        var pn=document.getElementById('profileName');if(pn)pn.textContent=userName;
-        var pe=document.getElementById('profileEmail');if(pe)pe.textContent=user.email || enteredId;
-        var cityEl=document.getElementById('userCity');if(cityEl&&user.city)cityEl.textContent=user.city;
-        var av=document.querySelector('.profile-avatar');
-        if(av)av.textContent=userName.split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
-        localStorage.setItem('VYBERA_BUYER_TOKEN',data.token||'');
-        sessionStorage.removeItem('VYBERA_GUEST_MODE');
-        await loadBuyerBookingHistory();
-        await loadProfileCreatorEvents();
-        renderProfileCreatorEvents();
-        if(continueAfterBuyerAuth()){setButtonBusy('loginBtn',false,null,'Sign In');return;}
-        navigateBuyerHome();
+        await completeBuyerLogin(data.user||{email:enteredId,username:enteredId},data.token||'');
         setButtonBusy('loginBtn',false,null,'Sign In');
         return;
       }catch(err){
         var msg=String(err.message||'Login failed');
         if(msg.toLowerCase().includes('user not found')) msg='Invalid email/login ID or password';
-        alert(msg);
+        showToast(msg);
         setButtonBusy('loginBtn',false,null,'Sign In');
         return;
       }
@@ -5905,10 +6086,11 @@ async function readAuthResponse(resp){
   }
 }
 
-async function applySocialLogin(user){
+async function applySocialLogin(user,options){
+  options=options||{};
   var name = user.name || 'Google User';
   var email = user.email || '';
-  if(sessionStorage.getItem('VYBERA_GOOGLE_PENDING')!=='1'){
+  if(!options.force && !hasGoogleLoginPending()){
     console.warn('Ignoring Google login result because the Google button was not clicked in this session.');
     return;
   }
@@ -5920,25 +6102,18 @@ async function applySocialLogin(user){
     });
     var data=await readAuthResponse(resp);
     if(!resp.ok)throw new Error(data.error||'Google login failed');
-    localStorage.setItem('VYBERA_BUYER_TOKEN',data.token||'');
-    applyBuyerProfile(data.user||{username:name,email:email,profileImage:user.photoURL||''});
-    await loadBuyerBookingHistory();
-    await loadProfileCreatorEvents();
-    renderProfileCreatorEvents();
-    sessionStorage.removeItem('VYBERA_GOOGLE_PENDING');
+    await completeBuyerLogin(data.user||{username:name,email:email,profileImage:user.photoURL||''},data.token||'');
     showToast('Signed in with Google');
-    if(continueAfterBuyerAuth())return;
-    navigateBuyerHome();
   }catch(err){
     console.error('Google profile sync failed:',err);
-    sessionStorage.removeItem('VYBERA_GOOGLE_PENDING');
+    clearGoogleLoginPending();
     showToast(err.message||'Google login failed');
   }
 }
 window.applySocialLogin=applySocialLogin;
 
 async function localGoogleSignInFallback(){
-  sessionStorage.setItem('VYBERA_GOOGLE_PENDING','1');
+  markGoogleLoginPending();
   var email=(prompt('Enter your Google email to continue:')||'').trim();
   if(!email)return;
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showToast('Enter a valid Google email');return;}
@@ -5951,7 +6126,7 @@ function isBlockedGoogleWebView(){
   return !!window.cordova || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
 }
 function openGoogleInSystemBrowser(){
-  sessionStorage.removeItem('VYBERA_GOOGLE_PENDING');
+  clearGoogleLoginPending();
   var url=location.origin+location.pathname+'?google=1';
   alert('Google blocks sign-in inside this app screen. VYBERA will open your phone browser for Google sign-in. For in-app login, use email and password.');
   if(window.cordova && window.cordova.InAppBrowser){
@@ -5966,7 +6141,15 @@ async function signInWithGoogle(){
     return openGoogleInSystemBrowser();
   }
   sessionStorage.removeItem('VYBERA_GUEST_MODE');
-  sessionStorage.setItem('VYBERA_GOOGLE_PENDING','1');
+  markGoogleLoginPending();
+  localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_PROFILE');
+  localStorage.removeItem('VYBERA_STAFF_TOKEN');
+  localStorage.removeItem('VYBERA_CREATOR_TOKEN');
+  localStorage.removeItem('VYBERA_CREATOR_PROFILE');
+  STORE.currentAdmin=null;
+  STORE.currentStaff=null;
+  STORE.creatorProfile=null;
   if(window.vyberaFirebaseGoogleSignIn){
     return window.vyberaFirebaseGoogleSignIn();
   }
@@ -6027,12 +6210,12 @@ if(new URLSearchParams(location.search).get('google')==='1' && !isBlockedGoogleW
     signInWithGoogle();
   },400);
 }
-if(sessionStorage.getItem('VYBERA_GOOGLE_PENDING')==='1'){
+if(hasGoogleLoginPending()){
   showToast('Completing Google sign-in...');
 }
 setTimeout(completePayUReturn, 100);
 setTimeout(loadPublishedEvents, 150);
-setTimeout(restoreBuyerSession,180);
+setTimeout(bootstrapAuth, 80);
 setTimeout(enableVyberaLogoNavigation,0);
 setTimeout(function(){
   var sharedTicket=new URLSearchParams(location.search).get('ticket');
@@ -6212,6 +6395,7 @@ function admSignOut(){
   STORE.addAdminLog('Logout', 'Admin signed out');
   STORE.currentAdmin = null;
   localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_PROFILE');
   document.body.classList.remove('on-splash');
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   var s = document.getElementById('page-splash'); if(s) s.classList.add('active');
@@ -6749,14 +6933,29 @@ function admRefreshStaff(){
       +'<td>'+ss.assigned+'</td><td>'+ss.sold+'</td>'
       +'<td style="font-size:11px;">₹'+ss.earnings.toLocaleString('en-IN')+'</td>'
       +'<td><span class="adm-badge '+(s.status==='active'?'green':'red')+'">'+(s.status==='active'?'Active':'Suspended')+'</span></td>'
-      +'<td><button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Disable</button></td></tr>';
+      +'<td><button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm '+(s.status==='active'?'adm-btn-ghost':'adm-btn-green')+'">'+(s.status==='active'?'Disable':'Enable')+'</button></td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--adm-text2);padding:24px;">No staff members yet</td></tr>';
 }
 
-function admDisableStaff(id){
+async function admDisableStaff(id){
   var s=STORE.staff.find(function(x){return x.id===id;}); if(!s) return;
-  s.status='suspended'; admRefreshStaff();
-  admShowToast('Staff disabled: '+s.name); STORE.addAdminLog('Disable Staff',s.name);
+  var newStatus=s.status==='active'?'suspended':'active';
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/staff/'+encodeURIComponent(id)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:newStatus})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok) throw new Error(data.error||'Could not update staff status');
+    s.status=newStatus;
+    admRefreshStaff();
+    admShowToast(newStatus==='suspended'?'Staff disabled: '+s.name:'Staff enabled: '+s.name);
+    STORE.addAdminLog(newStatus==='suspended'?'Disable Staff':'Enable Staff',s.name);
+  }catch(err){
+    admShowToast(err.message||'Could not update staff status');
+  }
 }
 
 // ── ANALYTICS ──
@@ -7942,43 +8141,81 @@ STORE.bookEvent = function(evId, ticketTier, qty){
 
 // ── ADMIN EMERGENCY CONTROLS ──
 
+async function persistAdminEventStatus(eventId,status){
+  var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+  if(!token) throw new Error('Admin login required');
+  var resp=await fetch(apiUrl('/admin/events/'+encodeURIComponent(eventId)+'/status'),{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+    body:JSON.stringify({status:status})
+  });
+  var data=await readAuthResponse(resp);
+  if(!resp.ok) throw new Error(data.error||'Could not update event status');
+  return data.event;
+}
+
+function applyAdminEventStatus(ev,status){
+  if(!ev) return;
+  ev.status=status;
+  ev._salesPaused=status==='paused'||status==='blocked';
+  var index=(STORE.events||[]).findIndex(function(item){return item.id===ev.id;});
+  if(index>=0)STORE.events[index]=ev;
+}
+
 // Pause ticket sales for an event
-function admPauseSales(eventId){
+async function admPauseSales(eventId){
   var ev = STORE.events.find(function(e){ return e.id===eventId; });
   if(!ev) return;
-  ev._salesPaused = true;
-  admShowToast('⏸ Sales paused: ' + ev.name);
-  STORE.addAdminLog('Pause Sales', ev.name);
-  VyberaEventBus.emit('creator_update', {type:'sales_paused', eventName:ev.name, reason:'Admin action'});
-  vyberaActivity.log('Sales paused: ' + ev.name);
-  if(typeof admRenderEvents === 'function') admRenderEvents('all');
+  try{
+    var updated=await persistAdminEventStatus(eventId,'paused');
+    applyAdminEventStatus(ev, (updated&&updated.status)||'paused');
+    admShowToast('⏸ Sales paused: ' + ev.name);
+    STORE.addAdminLog('Pause Sales', ev.name);
+    VyberaEventBus.emit('creator_update', {type:'sales_paused', eventName:ev.name, reason:'Admin action'});
+    vyberaActivity.log('Sales paused: ' + ev.name);
+    if(typeof loadPublishedEvents==='function') await loadPublishedEvents();
+    if(typeof admRenderEvents === 'function') admRenderEvents(admCurrentEventTab||'all');
+  }catch(err){
+    admShowToast(err.message||'Could not pause sales');
+  }
 }
 
 // Resume ticket sales
-function admResumeSales(eventId){
+async function admResumeSales(eventId){
   var ev = STORE.events.find(function(e){ return e.id===eventId; });
   if(!ev) return;
-  ev._salesPaused = false;
-  admShowToast('▶ Sales resumed: ' + ev.name);
-  STORE.addAdminLog('Resume Sales', ev.name);
-  vyberaActivity.log('Sales resumed: ' + ev.name);
-  if(typeof admRenderEvents === 'function') admRenderEvents('all');
+  try{
+    var updated=await persistAdminEventStatus(eventId,'live');
+    applyAdminEventStatus(ev, (updated&&updated.status)||'live');
+    admShowToast('▶ Sales resumed: ' + ev.name);
+    STORE.addAdminLog('Resume Sales', ev.name);
+    vyberaActivity.log('Sales resumed: ' + ev.name);
+    if(typeof loadPublishedEvents==='function') await loadPublishedEvents();
+    if(typeof admRenderEvents === 'function') admRenderEvents(admCurrentEventTab||'all');
+  }catch(err){
+    admShowToast(err.message||'Could not resume sales');
+  }
 }
 
 // Emergency block event
-function admEmergencyBlock(eventId){
+async function admEmergencyBlock(eventId){
   var ev = STORE.events.find(function(e){ return e.id===eventId; });
   if(!ev) return;
   if(!confirm('EMERGENCY BLOCK: ' + ev.name + '?\nThis will immediately stop all sales and notify buyers.')) return;
-  ev.status = 'blocked';
-  ev._salesPaused = true;
-  admShowToast('🚨 Event BLOCKED: ' + ev.name);
-  STORE.addAdminLog('Emergency Block', ev.name);
-  VyberaEventBus.emit('event_updated', {id:ev.id, name:ev.name, status:'blocked'});
-  VyberaEventBus.emit('creator_update', {type:'event_emergency_blocked', eventName:ev.name});
-  vyberaActivity.log('🚨 EMERGENCY BLOCK: ' + ev.name);
-  if(typeof admRenderEvents === 'function') admRenderEvents('all');
-  if(typeof admRefreshDashboard === 'function') admRefreshDashboard();
+  try{
+    var updated=await persistAdminEventStatus(eventId,'blocked');
+    applyAdminEventStatus(ev, (updated&&updated.status)||'blocked');
+    admShowToast('🚨 Event BLOCKED: ' + ev.name);
+    STORE.addAdminLog('Emergency Block', ev.name);
+    VyberaEventBus.emit('event_updated', {id:ev.id, name:ev.name, status:'blocked'});
+    VyberaEventBus.emit('creator_update', {type:'event_emergency_blocked', eventName:ev.name});
+    vyberaActivity.log('🚨 EMERGENCY BLOCK: ' + ev.name);
+    if(typeof loadPublishedEvents==='function') await loadPublishedEvents();
+    if(typeof admRenderEvents === 'function') admRenderEvents(admCurrentEventTab||'all');
+    if(typeof admRefreshDashboard === 'function') admRefreshDashboard();
+  }catch(err){
+    admShowToast(err.message||'Could not block event');
+  }
 }
 
 // Freeze payout for a creator
@@ -8049,7 +8286,7 @@ function admRenderEvents(tab){
   }
 
   tbody.innerHTML = evs.map(function(ev){
-    var statusCol = {live:'green',pending:'yellow',rejected:'red',blocked:'red'}[ev.status]||'blue';
+    var statusCol = {live:'green',paused:'yellow',pending:'yellow',rejected:'red',blocked:'red'}[ev.status]||'blue';
     var paused = ev._salesPaused;
     var risk = ev.riskScore || 0;
     var riskCol = risk>70?'#ef4444':risk>40?'#eab308':'#22c55e';
@@ -8070,8 +8307,8 @@ function admRenderEvents(tab){
          +'<button onclick="admRejectEvent(\''+ev.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Reject</button>'
         :''
       )
-      +(ev.status==='live'
-        ?(paused
+      +(ev.status==='live'||ev.status==='paused'
+        ?(ev.status==='paused'||paused
           ?'<button onclick="admResumeSales(\''+ev.id+'\')" class="adm-btn adm-btn-sm adm-btn-green">Resume</button>'
           :'<button onclick="admPauseSales(\''+ev.id+'\')" class="adm-btn adm-btn-sm adm-btn-yellow">Pause</button>')
         :'')
@@ -8119,10 +8356,10 @@ VyberaEventBus.on('creator_update', function(data){
 
 // ── ADMIN DASHBOARD REFRESH — include fraud panel ──
 var _baseAdmRefreshDashboard = admRefreshDashboard;
-function admRefreshDashboard(){
+admRefreshDashboard = function(){
   _baseAdmRefreshDashboard();
   admRefreshFraudPanel();
-}
+};
 
 // ── RISK SCORE ON EVENT SUBMISSION ──
 function admGetRiskBadge(score){
@@ -8641,7 +8878,7 @@ function admRefreshStaff(){
       +'<td style="font-size:11px;">₹'+earnings.toLocaleString('en-IN')+'</td>'
       +'<td><span class="adm-badge '+(s.status==='active'?'green':'red')+'">'+(s.status==='active'?'Active':'Suspended')+'</span></td>'
       +'<td><div style="display:flex;gap:3px;flex-wrap:wrap;">'
-      +'<button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Disable</button>'
+      +'<button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm '+(s.status==='active'?'adm-btn-ghost':'adm-btn-green')+'">'+(s.status==='active'?'Disable':'Enable')+'</button>'
       +(frozen?'':'<button onclick="admFreezeInventory(\''+s.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);font-size:9px;">Freeze Inv</button>')
       +(locked?'':'<button onclick="admLockWallet(\''+s.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(234,179,8,.1);color:#eab308;border:1px solid rgba(234,179,8,.3);font-size:9px;">Lock Wallet</button>')
       +'</div></td></tr>';

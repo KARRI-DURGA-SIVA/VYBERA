@@ -7,6 +7,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -67,7 +68,6 @@ function forceBuyerHome() {
 
 async function finishGoogleUser(user) {
   if (!user || googleSessionApplied) return;
-  if (!hasGooglePending()) return;
   const displayName = user.displayName || "Google User";
   const email = user.email || "";
   if (!email) {
@@ -83,7 +83,7 @@ async function finishGoogleUser(user) {
     name: displayName,
     email,
     photoURL: user.photoURL || "",
-  });
+  }, { force: true });
   googleSessionApplied = true;
   clearGooglePending();
   setTimeout(forceBuyerHome, 80);
@@ -101,7 +101,8 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
   try {
     if (normalizeLocalAuthOrigin()) return;
     markGooglePending();
-    if (window.VYBERA_GOOGLE_USE_REDIRECT === true) {
+    const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (window.VYBERA_GOOGLE_USE_REDIRECT === true && !isLocalHost) {
       return signInWithRedirect(auth, googleProvider);
     }
     const result = await signInWithPopup(auth, googleProvider);
@@ -139,3 +140,9 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
 };
 
 window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
+
+window.vyberaFirebaseSignOut = function() {
+  return signOut(auth).catch((err) => {
+    console.error("Firebase signOut failed:", err);
+  });
+};
