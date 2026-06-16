@@ -1685,7 +1685,7 @@ window.addEventListener('DOMContentLoaded', function(){
       <div style="position:absolute;bottom:20px;right:20px;width:30px;height:30px;border-bottom:3px solid #00D4D4;border-right:3px solid #00D4D4;border-radius:0 0 4px 0;"></div>
       <!-- Scan line animation -->
       <div id="scanLine" style="position:absolute;left:20px;right:20px;height:2px;background:linear-gradient(90deg,transparent,#00D4D4,transparent);animation:scanAnim 2s linear infinite;"></div>
-      <video id="scannerVideo" playsinline style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></video>
+      <video id="scannerVideo" playsinline muted autoplay style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></video>
       <div style="text-align:center;z-index:1;">
         <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:8px;">Point camera at ticket QR</div>
         <button onclick="startQrCamera()" style="padding:10px 20px;background:#00D4D4;border:none;border-radius:20px;color:#000;font-weight:700;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">Open Camera</button>
@@ -9361,13 +9361,22 @@ function scanTypedQr(){
 }
 var scannerStream=null,scannerTimer=null;
 async function startQrCamera(){
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof BarcodeDetector==='undefined'){
-    showToast('Camera QR scanning is unavailable here. Paste the QR value below.');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showToast('Camera is unavailable here. Use localhost/HTTPS or paste the QR value below.');
     return;
   }
   try{
-    scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    stopQrCamera();
+    try{
+      scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    }catch(cameraErr){
+      scannerStream=await navigator.mediaDevices.getUserMedia({video:true});
+    }
     var video=document.getElementById('scannerVideo');video.srcObject=scannerStream;video.style.display='block';await video.play();
+    if(typeof BarcodeDetector==='undefined'){
+      showToast('Camera opened. QR auto scan is unavailable in this browser.');
+      return;
+    }
     var detector=new BarcodeDetector({formats:['qr_code']});
     scannerTimer=setInterval(async function(){
       try{
