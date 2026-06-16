@@ -37,6 +37,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use((req, res, next) => {
+  res.header("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Vary", "Origin");
   res.header(
@@ -52,6 +53,7 @@ app.use((req, res, next) => {
 });
 app.use(bodyParser.json({ limit: "30mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.use(express.static(path.join(__dirname)));
 app.use("/VYBERA", express.static(path.join(__dirname)));
 app.use("/uploads", express.static(uploadsDir));
@@ -167,7 +169,24 @@ const publicUser = (user) => ({
   profileImage: user.profile_image_url,
   profileImageKey: user.profile_image_key,
   profileImageStorage: user.profile_image_storage,
+  status: user.status || "Active",
 });
+
+const USER_ACTIVE_STATUS = "Active";
+const USER_BLOCKED_STATUSES = new Set(["Suspended", "Blocked", "Inactive"]);
+const EVENT_AVAILABLE_STATUSES = new Set(["live", "upcoming"]);
+const EVENT_NOT_FOUND_ERROR = "Event does not exist";
+const USER_NOT_FOUND_ERROR = "User account not found";
+const STAFF_NOT_FOUND_ERROR = "Staff account not found";
+
+const normalizeUserStatus = (status) =>
+  String(status || USER_ACTIVE_STATUS).trim();
+
+const isUserActive = (status) =>
+  !USER_BLOCKED_STATUSES.has(normalizeUserStatus(status));
+
+const isEventBookable = (status) =>
+  EVENT_AVAILABLE_STATUSES.has(String(status || "").trim().toLowerCase());
 
 const publicCreator = (creator) => ({
   id: creator.id,
@@ -318,12 +337,19 @@ const requireCreator = (req, res, next) => {
   }
 };
 
-const requireAdmin = (req, res, next) => {
+const requireAdmin = async (req, res, next) => {
   try {
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const payload = verifyJwt(token);
     if (payload.scope !== "admin") throw new Error("Admin login required");
+    const adminCheck = await pool.query(
+      "SELECT id, status FROM admin_accounts WHERE id=$1",
+      [payload.sub],
+    );
+    if (!adminCheck.rows.length || adminCheck.rows[0].status !== "Active") {
+      throw new Error("Admin account not found");
+    }
     req.admin = payload;
     next();
   } catch (err) {
@@ -331,12 +357,19 @@ const requireAdmin = (req, res, next) => {
   }
 };
 
-const requireStaff = (req, res, next) => {
+const requireStaff = async (req, res, next) => {
   try {
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const payload = verifyJwt(token);
     if (payload.scope !== "staff") throw new Error("Staff login required");
+    const staffCheck = await pool.query(
+      "SELECT id, status FROM staff_accounts WHERE id=$1",
+      [payload.sub]
+    );
+    if (!staffCheck.rows.length || staffCheck.rows[0].status !== "active") {
+      throw new Error(STAFF_NOT_FOUND_ERROR);
+    }
     req.staff = payload;
     next();
   } catch (err) {
@@ -363,12 +396,19 @@ const requireScanIdentity = (req, res, next) => {
   }
 };
 
-const requireBuyer = (req, res, next) => {
+const requireBuyer = async (req, res, next) => {
   try {
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const payload = verifyJwt(token);
     if (!payload.sub || payload.scope) throw new Error("Buyer login required");
+    const userCheck = await pool.query(
+      "SELECT id, status FROM users WHERE id=$1",
+      [payload.sub],
+    );
+    if (!userCheck.rows.length || !isUserActive(userCheck.rows[0].status)) {
+      throw new Error(USER_NOT_FOUND_ERROR);
+    }
     req.buyer = payload;
     next();
   } catch (err) {
@@ -565,7 +605,8 @@ const initDb = async () => {
       ADD COLUMN IF NOT EXISTS profile_image_url TEXT,
       ADD COLUMN IF NOT EXISTS profile_image_key TEXT,
       ADD COLUMN IF NOT EXISTS profile_image_storage TEXT,
-      ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'email'
+      ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'email',
+      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Active'
   `);
 
   await pool.query(`
@@ -1132,7 +1173,33 @@ app.post("/creator/applications", async (req, res) => {
 
 app.post("/creator/login", async (req, res) => {
   try {
-    const cleanEmail = String((req.body && req.body.email) || "")
+    const readLoginValue = (value) => {
+      if (!value) return "";
+      if (typeof value === "object") {
+        return (
+          value.email ||
+          value.user ||
+          value.username ||
+          value.loginId ||
+          value.identifier ||
+          value.name ||
+          ""
+        );
+      }
+      return value;
+    };
+    const loginIdentifier = String(
+      readLoginValue(
+        req.body &&
+          (req.body.email ||
+            req.body.user ||
+            req.body.username ||
+            req.body.loginId ||
+            req.body.identifier ||
+            req.body.login),
+      ),
+    ).trim();
+    const cleanEmail = loginIdentifier
       .trim()
       .toLowerCase();
     const password = String((req.body && req.body.password) || "");
@@ -1144,18 +1211,43 @@ app.post("/creator/login", async (req, res) => {
     const result = await pool.query(
       `SELECT id, name, email, phone, category, about, password, kyc_status, created_at
        FROM creator_accounts
-       WHERE email=$1`,
+       WHERE LOWER(email)=LOWER($1)
+          OR LOWER(name)=LOWER($1)
+          OR LOWER(split_part(email, '@', 1))=LOWER(split_part($1, '@', 1))
+       ORDER BY CASE
+          WHEN LOWER(email)=LOWER($1) THEN 0
+          WHEN LOWER(name)=LOWER($1) THEN 1
+          ELSE 2
+        END
+       LIMIT 1`,
       [cleanEmail],
     );
-    if (
-      !result.rows.length ||
-      !(await bcrypt.compare(password, result.rows[0].password))
-    ) {
+    const creator = result.rows[0];
+    let validPassword = false;
+    if (creator) {
+      const storedPassword = String(creator.password || "");
+      if (storedPassword.startsWith("$2")) {
+        validPassword = await bcrypt.compare(password, storedPassword);
+      } else {
+        validPassword = password === storedPassword;
+        if (validPassword) {
+          const upgradedPassword = await bcrypt.hash(password, 10);
+          await pool.query(
+            "UPDATE creator_accounts SET password=$1 WHERE id=$2",
+            [upgradedPassword, creator.id],
+          );
+        }
+      }
+    }
+    if (!creator || !validPassword) {
       return res
         .status(401)
-        .json({ error: "Invalid creator email or password" });
+        .json({
+          error: "Invalid creator email or password",
+          reason: creator ? "password_mismatch" : "creator_not_found",
+          loginReceived: loginIdentifier,
+        });
     }
-    const creator = result.rows[0];
     res.json({
       message: "Creator login successful",
       creator: publicCreator(creator),
@@ -1169,6 +1261,24 @@ app.post("/creator/login", async (req, res) => {
   } catch (err) {
     console.error("Creator login failed:", err);
     res.status(500).json({ error: "Creator login failed" });
+  }
+});
+
+app.get("/creator/session", requireCreator, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email, phone, category, about, kyc_status, created_at
+       FROM creator_accounts
+       WHERE id=$1`,
+      [req.creator.sub],
+    );
+    if (!result.rows.length) {
+      return res.status(401).json({ error: "Creator account not found" });
+    }
+    res.json({ creator: publicCreator(result.rows[0]) });
+  } catch (err) {
+    console.error("Creator session restore failed:", err);
+    res.status(500).json({ error: "Could not restore creator session" });
   }
 });
 
@@ -1939,10 +2049,8 @@ app.post("/staff/sales", requireStaff, async (req, res) => {
     );
     if (!assignment.rows.length) throw new Error("Assigned tickets not found");
     const assigned = assignment.rows[0];
-    if (eventSalesClosed(assigned) || assigned.event_status !== "live") {
-      throw new Error(
-        "This event is completed or not live. Staff can view data only.",
-      );
+    if (eventSalesClosed(assigned) || !isEventBookable(assigned.event_status)) {
+      throw new Error(EVENT_NOT_FOUND_ERROR);
     }
     const remaining =
       Number(assigned.qty || 0) - Number(assigned.sold_count || 0);
@@ -2216,12 +2324,28 @@ app.post("/admin/login", async (req, res) => {
   }
 });
 
+app.get("/admin/session", requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM admin_accounts WHERE id=$1",
+      [req.admin.sub],
+    );
+    if (!result.rows.length || result.rows[0].status !== "Active") {
+      return res.status(401).json({ error: "Admin account not found" });
+    }
+    res.json({ admin: publicAdmin(result.rows[0]) });
+  } catch (err) {
+    console.error("Admin session restore failed:", err);
+    res.status(500).json({ error: "Could not restore admin session" });
+  }
+});
+
 app.get("/admin/snapshot", requireAdmin, async (req, res) => {
   try {
     const [buyers, creators, events, bookings, payments, staff] =
       await Promise.all([
         pool.query(`
-        SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.city, u.created_at,
+        SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.city, u.status, u.created_at,
           COUNT(b.id)::INTEGER AS bookings
         FROM users u
         LEFT JOIN bookings b ON b.user_id=u.id OR (b.user_id IS NULL AND LOWER(b.buyer_email)=LOWER(u.email))
@@ -2263,7 +2387,7 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
         email: buyer.email,
         city: buyer.city || "",
         bookings: Number(buyer.bookings || 0),
-        status: "Active",
+        status: normalizeUserStatus(buyer.status),
         createdAt: buyer.created_at,
       })),
       creators: creators.rows.map((creator) => ({
@@ -2368,6 +2492,148 @@ app.patch("/admin/events/:eventId/status", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Event status update failed:", err);
     res.status(500).json({ error: "Could not update event status" });
+  }
+});
+
+// Update buyer status (active/suspended)
+app.patch("/admin/users/:userId/status", requireAdmin, async (req, res) => {
+  try {
+    const rawUserId = String(req.params.userId || "").replace(/^USR-/i, "");
+    const userId = Number(rawUserId);
+    const status = normalizeUserStatus((req.body || {}).status);
+
+    if (!Number.isInteger(userId) || userId < 1 || !status) {
+      return res.status(400).json({ error: "userId and status are required" });
+    }
+
+    if (![USER_ACTIVE_STATUS, "Suspended"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Invalid status. Must be Active or Suspended" });
+    }
+
+    const result = await pool.query(
+      `UPDATE users
+       SET status=$1
+       WHERE id=$2
+       RETURNING id, username, first_name, last_name, email, phone, country_code, city,
+         profile_image_url, profile_image_key, profile_image_storage, status`,
+      [status, userId],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
+    }
+
+    res.json({ success: true, user: publicUser(result.rows[0]) });
+  } catch (err) {
+    console.error("User status update failed:", err);
+    res.status(500).json({ error: "Could not update user status" });
+  }
+});
+
+app.patch("/admin/creators/:creatorId/status", requireAdmin, async (req, res) => {
+  try {
+    const rawCreatorId = String(req.params.creatorId || "").replace(/^CRT-/i, "");
+    const creatorId = Number(rawCreatorId);
+    const status = String((req.body || {}).status || "").trim();
+
+    if (!Number.isInteger(creatorId) || creatorId < 1 || !status) {
+      return res
+        .status(400)
+        .json({ error: "creatorId and status are required" });
+    }
+
+    if (!["Pending", "Approved", "Rejected"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
+    }
+
+    const result = await pool.query(
+      `UPDATE creator_accounts
+       SET kyc_status=$1
+       WHERE id=$2
+       RETURNING id, name, email, phone, category, about, kyc_status, created_at`,
+      [status, creatorId],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Creator account not found" });
+    }
+
+    res.json({ success: true, creator: publicCreator(result.rows[0]) });
+  } catch (err) {
+    console.error("Creator status update failed:", err);
+    res.status(500).json({ error: "Could not update creator status" });
+  }
+});
+
+app.patch("/admin/creators/status-by-email", requireAdmin, async (req, res) => {
+  try {
+    const email = String((req.body || {}).email || "")
+      .trim()
+      .toLowerCase();
+    const status = String((req.body || {}).status || "").trim();
+
+    if (!email || !status) {
+      return res.status(400).json({ error: "email and status are required" });
+    }
+
+    if (!["Pending", "Approved", "Rejected"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
+    }
+
+    const result = await pool.query(
+      `UPDATE creator_accounts
+       SET kyc_status=$1
+       WHERE LOWER(email)=LOWER($2)
+       RETURNING id, name, email, phone, category, about, kyc_status, created_at`,
+      [status, email],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Creator account not found" });
+    }
+
+    res.json({ success: true, creator: publicCreator(result.rows[0]) });
+  } catch (err) {
+    console.error("Creator status update by email failed:", err);
+    res.status(500).json({ error: "Could not update creator status" });
+  }
+});
+
+// Update staff status (active/suspended)
+app.patch("/admin/staff/:staffId/status", requireAdmin, async (req, res) => {
+  try {
+    const { staffId } = req.params;
+    const { status } = req.body || {};
+
+    if (!staffId || !status) {
+      return res.status(400).json({ error: "staffId and status are required" });
+    }
+
+    if (status !== "active" && status !== "suspended") {
+      return res
+        .status(400)
+        .json({ error: "Invalid status. Must be active or suspended" });
+    }
+
+    const result = await pool.query(
+      "UPDATE staff_accounts SET status=$1 WHERE id=$2 RETURNING *",
+      [status, staffId],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+
+    res.json({ success: true, staff: publicStaff(result.rows[0]) });
+  } catch (err) {
+    console.error("Staff status update failed:", err);
+    res.status(500).json({ error: "Could not update staff status" });
   }
 });
 
@@ -2564,37 +2830,18 @@ app.post("/payments/payu/initiate", async (req, res) => {
     }
 
     // Validate event status before initiating payment
-    const { bookingId } = req.body;
-    if (bookingId) {
-      const bookingResult = await pool.query(
-        "SELECT event_id FROM bookings WHERE id=$1",
-        [bookingId],
+    const { eventId } = req.body;
+    if (eventId) {
+      const eventResult = await pool.query(
+        "SELECT id, status FROM creator_events WHERE id=$1",
+        [eventId],
       );
 
-      if (bookingResult.rows.length) {
-        const eventId = bookingResult.rows[0].event_id;
-        if (eventId) {
-          const eventResult = await pool.query(
-            "SELECT id, status FROM creator_events WHERE id=$1",
-            [eventId],
-          );
-
-          if (eventResult.rows.length) {
-            const event = eventResult.rows[0];
-            const blockedStatuses = [
-              "paused",
-              "blocked",
-              "cancelled",
-              "completed",
-            ];
-            if (blockedStatuses.includes(event.status)) {
-              return res.status(403).json({
-                error: `Payment cannot be initiated. Event status: ${event.status}`,
-                eventStatus: event.status,
-              });
-            }
-          }
-        }
+      if (
+        !eventResult.rows.length ||
+        !isEventBookable(eventResult.rows[0].status)
+      ) {
+        return res.status(404).json({ error: EVENT_NOT_FOUND_ERROR });
       }
     }
 
@@ -2727,19 +2974,11 @@ app.post("/bookings", async (req, res) => {
         [booking.eventId],
       );
 
-      if (!eventResult.rows.length) {
-        await client.release();
-        return res.status(404).json({ error: "Event not found" });
-      }
-
-      const event = eventResult.rows[0];
-      const blockedStatuses = ["paused", "blocked", "cancelled", "completed"];
-      if (blockedStatuses.includes(event.status)) {
-        await client.release();
-        return res.status(403).json({
-          error: `Bookings are not allowed for this event. Event status: ${event.status}`,
-          eventStatus: event.status,
-        });
+      if (
+        !eventResult.rows.length ||
+        !isEventBookable(eventResult.rows[0].status)
+      ) {
+        return res.status(404).json({ error: EVENT_NOT_FOUND_ERROR });
       }
     }
 
@@ -2755,15 +2994,35 @@ app.post("/bookings", async (req, res) => {
       dataUrl: ticketJson,
     });
 
-    await client.query("BEGIN");
     let userId = booking.userId || null;
+    const buyerEmail = String(booking.buyerEmail || "").trim();
+    let buyerUser = null;
     if (!userId && booking.buyerEmail) {
       const user = await client.query(
-        "SELECT id FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",
+        "SELECT id, status FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",
         [booking.buyerEmail],
       );
-      userId = user.rows[0] ? user.rows[0].id : null;
+      buyerUser = user.rows[0] || null;
+      userId = buyerUser ? buyerUser.id : null;
+    } else if (userId) {
+      const user = await client.query(
+        "SELECT id, status FROM users WHERE id=$1 LIMIT 1",
+        [userId],
+      );
+      buyerUser = user.rows[0] || null;
     }
+    if (!buyerUser && buyerEmail) {
+      const user = await client.query(
+        "SELECT id, status FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",
+        [buyerEmail],
+      );
+      buyerUser = user.rows[0] || null;
+      if (!userId && buyerUser) userId = buyerUser.id;
+    }
+    if (buyerUser && !isUserActive(buyerUser.status)) {
+      return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
+    }
+    await client.query("BEGIN");
     const qrToken = crypto.randomBytes(18).toString("hex");
     let staffMember = null;
     const staffRef = String(
@@ -3424,6 +3683,14 @@ app.post("/social-login", async (req, res) => {
     const firstName = parts.shift() || cleanName;
     const lastName = parts.join(" ");
     const result = await pool.query(
+      "SELECT id, status FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",
+      [cleanEmail],
+    );
+    if (result.rows.length && !isUserActive(result.rows[0].status)) {
+      return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
+    }
+
+    const upsert = await pool.query(
       `INSERT INTO users (
         username, first_name, last_name, email, password, auth_provider, profile_image_url
       )
@@ -3435,7 +3702,7 @@ app.post("/social-login", async (req, res) => {
         auth_provider=EXCLUDED.auth_provider,
         profile_image_url=COALESCE(users.profile_image_url, EXCLUDED.profile_image_url)
       RETURNING id, username, first_name, last_name, email, phone, country_code, city,
-        profile_image_url, profile_image_key, profile_image_storage, auth_provider`,
+        profile_image_url, profile_image_key, profile_image_storage, auth_provider, status`,
       [
         cleanName,
         firstName,
@@ -3446,7 +3713,7 @@ app.post("/social-login", async (req, res) => {
         photoURL || "",
       ],
     );
-    const user = result.rows[0];
+    const user = upsert.rows[0];
     res.json({
       message: "Login successful",
       user: publicUser(user),
@@ -3487,7 +3754,8 @@ app.post("/login", async (req, res) => {
         profile_image_url,
         profile_image_key,
         profile_image_storage,
-        password
+        password,
+        status
       FROM users
       WHERE email=$1`,
       [cleanEmail],
@@ -3500,6 +3768,11 @@ app.post("/login", async (req, res) => {
     }
 
     const user = result.rows[0];
+    if (!isUserActive(user.status)) {
+      return res.status(404).json({
+        error: USER_NOT_FOUND_ERROR,
+      });
+    }
 
     const validPassword = await bcrypt.compare(password, user.password);
 
@@ -3531,12 +3804,12 @@ app.get("/session", async (req, res) => {
     const payload = verifyJwt(token);
     const result = await pool.query(
       `SELECT id, username, first_name, last_name, email, phone, country_code, city,
-        profile_image_url, profile_image_key, profile_image_storage
+        profile_image_url, profile_image_key, profile_image_storage, status
        FROM users
        WHERE id=$1`,
       [payload.sub],
     );
-    if (!result.rows.length) {
+    if (!result.rows.length || !isUserActive(result.rows[0].status)) {
       return res.status(401).json({ error: "Session user not found" });
     }
     res.json({ user: publicUser(result.rows[0]) });

@@ -406,7 +406,12 @@ if(!window.VYBERA_DEBUG&&window.console){
   ['log','debug','info','warn','error'].forEach(function(k){window.console[k]=function(){};});
 }
 try{
-  if(localStorage.getItem('VYBERA_BUYER_TOKEN')&&sessionStorage.getItem('VYBERA_GUEST_MODE')!=='1'){
+  if(
+    localStorage.getItem('VYBERA_ADMIN_TOKEN')||
+    localStorage.getItem('VYBERA_STAFF_TOKEN')||
+    localStorage.getItem('VYBERA_CREATOR_TOKEN')||
+    (localStorage.getItem('VYBERA_BUYER_TOKEN')&&sessionStorage.getItem('VYBERA_GUEST_MODE')!=='1')
+  ){
     document.body.classList.add('session-restoring');
   }
 }catch(_){}
@@ -1181,7 +1186,7 @@ window.addEventListener('DOMContentLoaded', function(){
 <div style="font-size:13px;color:var(--grey);">Sign in with your creator account to manage events, track analytics, and scan tickets.</div>
 </div>
 <div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:block;">Creator Email</label><input class="form-input" id="creatorLoginEmail" type="email" placeholder="creator@yourbrand.com" autocomplete="email"/></div>
-<div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:block;">Password</label><input class="form-input" id="creatorLoginPwd" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')loginAsCreator();"/></div>
+<div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:block;">Password</label><div style="position:relative;"><input class="form-input" id="creatorLoginPwd" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')loginAsCreator();" style="padding-right:48px;"/><button type="button" id="creatorPwdEyeBtn" onclick="toggleCreatorPassword()" aria-label="Show password" title="Show password" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;"><svg id="creatorPwdEyeIcon" viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
 <button class="cta-full" style="margin-bottom:16px;" onclick="loginAsCreator()">Sign In as Creator →</button>
 <p style="text-align:center;font-size:13px;color:var(--grey);">Not a creator yet? <span onclick="showCreatorApplyModal()" style="color:var(--red);cursor:pointer;font-weight:600;">Apply for Creator Access</span></p>
 </div></div>
@@ -2145,7 +2150,7 @@ async function doSignUp(){
     });
     var data = await readAuthResponse(resp);
     if(!resp.ok){ throw new Error(data.error || 'Signup failed'); }
-    alert(data.message || 'Signup successful');
+    showToast(data.message || 'Account created! Signing you in…');
     var fullName=(first.value.trim()+' '+(last&&last.value.trim()||'')).trim();
     var pn=document.getElementById('profileName');if(pn)pn.textContent=fullName;
     var pe=document.getElementById('profileEmail');if(pe)pe.textContent=email.value.trim();
@@ -2161,10 +2166,10 @@ async function doSignUp(){
       var loginEmail=document.getElementById('siEmail');if(loginEmail)loginEmail.value = email.value.trim();
       var loginPassword=document.getElementById('siPassword');if(loginPassword)loginPassword.value = password.value;
       switchAuthTab('signin');
-      alert('This email already has an account. Sign in with your email and password.');
+      showToast('This email already has an account. Sign in with your email and password.');
       return;
     }
-    alert(err.message || 'Signup failed');
+    showToast(err.message || 'Signup failed');
   }finally{
     setButtonBusy('signupBtn',false,null,'Create Account');
   }
@@ -2313,6 +2318,23 @@ function promptCreatorLogin(){
   }
   showPage('page-creator-login');
 }
+function toggleCreatorPassword(){
+  var input=document.getElementById('creatorLoginPwd');
+  var btn=document.getElementById('creatorPwdEyeBtn');
+  var icon=document.getElementById('creatorPwdEyeIcon');
+  if(!input)return;
+  var show=input.type==='password';
+  input.type=show?'text':'password';
+  if(btn){
+    btn.setAttribute('aria-label',show?'Hide password':'Show password');
+    btn.title=show?'Hide password':'Show password';
+  }
+  if(icon){
+    icon.innerHTML=show
+      ? '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19C5 19 2 12 2 12a20.18 20.18 0 0 1 5.06-5.94"/><path d="M9.9 4.24A10.72 10.72 0 0 1 12 5c7 0 10 7 10 7a20.27 20.27 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 0 1-4.24-4.24"/><path d="M1 1l22 22"/>'
+      : '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
 async function loginAsCreator(){
   var emailEl = document.getElementById('creatorLoginEmail');
   var pwdEl   = document.getElementById('creatorLoginPwd');
@@ -2327,7 +2349,7 @@ async function loginAsCreator(){
     var resp = await fetch(apiUrl('/creator/login'), {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email:email, password:pwd})
+      body:JSON.stringify({email:email, user:email, password:pwd})
     });
     var data = await readAuthResponse(resp);
     if(!resp.ok) throw new Error(data.error || 'Creator login failed');
@@ -2700,12 +2722,34 @@ async function refreshCreatorStaffManageData(){
   return creatorStaffRefreshRequest;
 }
 function signOut(){
-  document.body.classList.remove('creator-mode');
+  if(!confirm("Are you sure you want to sign out?")) return;
+  localStorage.removeItem('VYBERA_BUYER_TOKEN');
+  localStorage.removeItem('VYBERA_BUYER_PROFILE');
+  localStorage.removeItem('VYBERA_CREATOR_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+  localStorage.removeItem('VYBERA_STAFF_TOKEN');
+  localStorage.removeItem('VYBERA_ADMIN_PROFILE');
+  localStorage.removeItem('VYBERA_CREATOR_PROFILE');
+  sessionStorage.removeItem('VYBERA_GUEST_MODE');
+  document.body.classList.remove('creator-mode','guest-mode');
   STORE.currentUser=null;
+  STORE.creatorProfile=null;
+  STORE.currentStaff=null;
+  STORE.currentAdmin=null;
+  if(typeof window.vyberaFirebaseSignOut==='function'){
+    window.vyberaFirebaseSignOut();
+  }
+  var url=new URL(window.location.href);
+  if(url.searchParams.has('google')){
+    url.searchParams.delete('google');
+    window.history.replaceState(null,'',url.pathname+url.search+url.hash);
+  }
   var pl=document.getElementById('payoutSettingsLink');
   if(pl)pl.style.display='none';
-  document.getElementById('financeSection').style.display='none';
-  document.getElementById('financeLock').style.display='block';
+  var financeSection=document.getElementById('financeSection');
+  if(financeSection)financeSection.style.display='none';
+  var financeLock=document.getElementById('financeLock');
+  if(financeLock)financeLock.style.display='block';
   showPage('page-splash');
   pageHistory=['page-splash'];
 }
@@ -3608,7 +3652,8 @@ async function restoreBuyerSession(){
     renderProfileCreatorEvents();
     var active=document.querySelector('.page.active');
     var activeId=active&&active.id;
-    if(activeId==='page-splash'||activeId==='page-login')navigateBuyerHome();
+    var _payuPending=!!localStorage.getItem('VYBERA_PAYU_RESULT');
+    if((activeId==='page-splash'||activeId==='page-login') && !_payuPending)navigateBuyerHome();
     clearSessionRestoring();
     return true;
   }catch(err){
@@ -3617,6 +3662,76 @@ async function restoreBuyerSession(){
     }
     clearSessionRestoring();
     return false;
+  }
+}
+async function restoreAdminSession(){
+  var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+  if(!token)return false;
+  try{
+    var resp=await fetch(apiUrl('/admin/session'),{headers:{Authorization:'Bearer '+token}});
+    var data=await readAuthResponse(resp);
+    if(!resp.ok)throw new Error(data.error||'Admin session expired');
+    STORE.currentAdmin=data.admin||null;
+    STORE.adminUsers=STORE.currentAdmin?[STORE.currentAdmin]:[];
+    await loadAdminSnapshot();
+    enterAdminPanel();
+    clearSessionRestoring();
+    return true;
+  }catch(err){
+    console.error('Admin session restore failed:',err);
+    localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+    localStorage.removeItem('VYBERA_ADMIN_PROFILE');
+    return false;
+  }
+}
+async function restoreStaffSession(){
+  var token=localStorage.getItem('VYBERA_STAFF_TOKEN')||'';
+  if(!token)return false;
+  try{
+    await refreshStaffData();
+    enterStaffPanel();
+    clearSessionRestoring();
+    return true;
+  }catch(err){
+    console.error('Staff session restore failed:',err);
+    localStorage.removeItem('VYBERA_STAFF_TOKEN');
+    return false;
+  }
+}
+async function restoreCreatorSession(){
+  var token=localStorage.getItem('VYBERA_CREATOR_TOKEN')||'';
+  if(!token)return false;
+  try{
+    var resp=await fetch(apiUrl('/creator/session'),{headers:{Authorization:'Bearer '+token}});
+    var data=await readAuthResponse(resp);
+    if(!resp.ok)throw new Error(data.error||'Creator session expired');
+    STORE.creatorProfile=data.creator||null;
+    STORE.currentUser=STORE.creatorProfile&&STORE.creatorProfile.email;
+    await loadCreatorEvents();
+    await loadCreatorStaff();
+    await loadCreatorAnalytics();
+    document.body.classList.add('creator-mode');
+    var nav=document.getElementById('creatorNavBar');
+    if(nav)nav.style.display='flex';
+    showPage('page-creator');
+    setTimeout(refreshCreatorDashboard,50);
+    clearSessionRestoring();
+    return true;
+  }catch(err){
+    console.error('Creator session restore failed:',err);
+    localStorage.removeItem('VYBERA_CREATOR_TOKEN');
+    localStorage.removeItem('VYBERA_CREATOR_PROFILE');
+    return false;
+  }
+}
+async function restoreSavedSession(){
+  try{
+    if(await restoreAdminSession())return true;
+    if(await restoreStaffSession())return true;
+    if(await restoreCreatorSession())return true;
+    return await restoreBuyerSession();
+  }finally{
+    clearSessionRestoring();
   }
 }
 var PROFILE_CREATOR_EVENTS=[];
@@ -5366,7 +5481,12 @@ function enterStaffPanel(){
   try{switchStaffTab('overview');}catch(err){console.error('Staff tab refresh failed:',err);}
 }
 
-function signOutStaff(){STORE.currentStaff=null;document.body.classList.remove('on-splash');showPage('page-splash');}
+function signOutStaff(){
+  STORE.currentStaff=null;
+  localStorage.removeItem('VYBERA_STAFF_TOKEN');
+  document.body.classList.remove('on-splash');
+  showPage('page-splash');
+}
 
 function refreshStaffDashboard(){
   var st=STORE.currentStaff;if(!st)return;
@@ -5799,15 +5919,10 @@ async function doLogin(){
           return;
         }
       } catch(staffApiErr) {
-        var looksLikeStaffId=enteredId.indexOf('@')===-1;
-        var staffExists=looksLikeStaffId ? true : await staffAccountExists(enteredId);
+        var staffExists=false;
+        try{staffExists=await staffAccountExists(enteredId);}catch(lookupErr){staffExists=false;}
         if(staffExists){
-          alert(staffApiErr.message || 'Invalid staff login ID or password');
-          setButtonBusy('loginBtn',false,null,'Sign In');
-          return;
-        }
-        if(looksLikeStaffId || staffApiErr.staffNotFound){
-          alert('Staff account not found. Use the staff email/login ID created by the creator.');
+          showToast(staffApiErr.message || 'Invalid staff login ID or password');
           setButtonBusy('loginBtn',false,null,'Sign In');
           return;
         }
@@ -5817,7 +5932,35 @@ async function doLogin(){
         var staff=STORE.loginStaff(enteredId, enteredPwd);
         if(staff){ emailEl.value='';pwdEl.value=''; enterStaffPanel(); setButtonBusy('loginBtn',false,null,'Sign In'); return; }
       }
-      // 4. Buyer login through the API
+      // 4. Creator login through the API
+      try{
+        var creatorResp = await fetch(apiUrl('/creator/login'), {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email: enteredId, user: enteredId, password: enteredPwd })
+        });
+        var creatorData = await readAuthResponse(creatorResp);
+        if(creatorResp.ok){
+          var account = creatorData.creator || {};
+          STORE.creatorProfile = account;
+          STORE.currentUser = account.email;
+          localStorage.setItem('VYBERA_CREATOR_TOKEN', creatorData.token || '');
+          await loadCreatorEvents();
+          await loadCreatorStaff();
+          await loadCreatorAnalytics();
+          emailEl.value='';pwdEl.value='';
+          document.body.classList.add('creator-mode');
+          var nav=document.getElementById('creatorNavBar');
+          if(nav) nav.style.display='flex';
+          showPage('page-creator');
+          setTimeout(refreshCreatorDashboard,50);
+          showToast('Welcome back, '+account.name+'!');
+          setButtonBusy('loginBtn',false,null,'Sign In');
+          return;
+        }
+      }catch(creatorErr){
+      }
+      // 5. Buyer login through the API
       try{
         var resp = await fetch(apiUrl('/login'), {
           method:'POST',
@@ -5826,7 +5969,6 @@ async function doLogin(){
         });
         var data = await readAuthResponse(resp);
         if(!resp.ok){ throw new Error(data.error || 'Login failed'); }
-        alert(data.message || 'Login successful');
         var user = data.user || {};
         var userName = user.username || [user.firstName,user.lastName].filter(Boolean).join(' ') || enteredId;
         var pn=document.getElementById('profileName');if(pn)pn.textContent=userName;
@@ -5846,13 +5988,13 @@ async function doLogin(){
       }catch(err){
         var msg=String(err.message||'Login failed');
         if(msg.toLowerCase().includes('user not found')) msg='Invalid email/login ID or password';
-        alert(msg);
+        showToast(msg);
         setButtonBusy('loginBtn',false,null,'Sign In');
         return;
       }
     }
   }
-  // 5. Guest-style fallback when no credentials were entered.
+  // 6. Guest-style fallback when no credentials were entered.
   setButtonBusy('loginBtn',false,null,'Sign In');
   quickLogin();
 }
@@ -5905,10 +6047,11 @@ async function readAuthResponse(resp){
   }
 }
 
-async function applySocialLogin(user){
+async function applySocialLogin(user,options){
+  options=options||{};
   var name = user.name || 'Google User';
   var email = user.email || '';
-  if(sessionStorage.getItem('VYBERA_GOOGLE_PENDING')!=='1'){
+  if(!options.force && sessionStorage.getItem('VYBERA_GOOGLE_PENDING')!=='1'){
     console.warn('Ignoring Google login result because the Google button was not clicked in this session.');
     return;
   }
@@ -5927,6 +6070,11 @@ async function applySocialLogin(user){
     renderProfileCreatorEvents();
     sessionStorage.removeItem('VYBERA_GOOGLE_PENDING');
     showToast('Signed in with Google');
+    var url=new URL(window.location.href);
+    if(url.searchParams.has('google')){
+      url.searchParams.delete('google');
+      window.history.replaceState(null,'',url.pathname+url.search+url.hash);
+    }
     if(continueAfterBuyerAuth())return;
     navigateBuyerHome();
   }catch(err){
@@ -6032,7 +6180,7 @@ if(sessionStorage.getItem('VYBERA_GOOGLE_PENDING')==='1'){
 }
 setTimeout(completePayUReturn, 100);
 setTimeout(loadPublishedEvents, 150);
-setTimeout(restoreBuyerSession,180);
+setTimeout(restoreSavedSession,180);
 setTimeout(enableVyberaLogoNavigation,0);
 setTimeout(function(){
   var sharedTicket=new URLSearchParams(location.search).get('ticket');
@@ -6609,16 +6757,19 @@ function admRenderCreators(){
   var tbody = document.getElementById('creatorsBody');
   if(!tbody) return;
   tbody.innerHTML = admCreatorsList.map(function(c,i){
-    var bc = c.status==='Verified'?'green':c.status==='Pending'?'yellow':'red';
+    var verified = c.status==='Verified'||c.status==='Approved';
+    var pending = c.status==='Pending';
+    var bc = verified?'green':pending?'yellow':'red';
+    var statusLabel = c.status==='Approved'?'Verified':c.status;
     return '<tr><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
       +'<td><div style="font-weight:600;color:var(--adm-text);">'+c.name+'</div><div style="font-size:10px;color:var(--adm-text2);">'+c.email+'</div></td>'
       +'<td><span class="adm-badge blue">'+(c.category||'—')+'</span></td>'
       +'<td>'+c.events+'</td>'
       +'<td style="font-size:11px;">₹'+c.revenue.toLocaleString('en-IN')+'</td>'
       +'<td><span style="font-size:12px;font-weight:600;color:var(--adm-text);">'+c.fee+'%</span></td>'
-      +'<td><span class="adm-badge '+bc+'">'+c.status+'</span></td>'
+      +'<td><span class="adm-badge '+bc+'">'+statusLabel+'</span></td>'
       +'<td><div style="display:flex;gap:4px;">'
-      +(c.status==='Pending'
+      +(pending
         ? '<button onclick="admVerifyCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Verify</button>'
         : '<button onclick="admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
       +'<button onclick="admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>'
@@ -6626,18 +6777,52 @@ function admRenderCreators(){
   }).join('');
 }
 
-function admSuspendBuyer(id){
+async function admSetBuyerStatus(id,status){
   var u = admBuyersList.find(function(x){return x.id===id;});
-  if(u){ u.status='Suspended'; admRenderBuyers(); admShowToast('User suspended: '+u.name); STORE.addAdminLog('Suspend Buyer',u.name); }
+  if(!u) return;
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/users/'+encodeURIComponent(id)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:status})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok) throw new Error(data.error||'Could not update user status');
+    u.status=status;
+    admRenderBuyers();
+    admShowToast(status==='Suspended'?'User suspended: '+u.name:'User reinstated: '+u.name);
+    STORE.addAdminLog(status==='Suspended'?'Suspend Buyer':'Reinstate User',u.name);
+  }catch(err){
+    admShowToast(err.message||'Could not update user status');
+  }
+}
+function admSuspendBuyer(id){
+  admSetBuyerStatus(id,'Suspended');
 }
 function admReinstateUser(id){
-  var u = admBuyersList.find(function(x){return x.id===id;});
-  if(u){ u.status='Active'; admRenderBuyers(); admShowToast('User reinstated: '+u.name); STORE.addAdminLog('Reinstate User',u.name); }
+  admSetBuyerStatus(id,'Active');
 }
 function admNotifyUser(name){ admShowToast('Notification sent to: '+name); STORE.addAdminLog('Notify User',name); }
-function admVerifyCreator(id){
+async function admVerifyCreator(id){
   var c = admCreatorsList.find(function(x){return x.id===id;});
-  if(c){ c.status='Verified'; admRenderCreators(); admShowToast('✅ Creator verified: '+c.name); STORE.addAdminLog('Verify Creator',c.name); }
+  if(!c) return;
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/creators/'+encodeURIComponent(id)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:'Approved'})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok) throw new Error(data.error||'Could not verify creator');
+    c.status='Approved';
+    admRenderCreators();
+    admShowToast('✅ Creator verified: '+c.name);
+    STORE.addAdminLog('Verify Creator',c.name);
+  }catch(err){
+    admShowToast(err.message||'Could not verify creator');
+  }
 }
 function admVerifyAllCreators(){
   admCreatorsList.forEach(function(c){ if(c.status==='Pending') c.status='Verified'; });
@@ -6749,14 +6934,29 @@ function admRefreshStaff(){
       +'<td>'+ss.assigned+'</td><td>'+ss.sold+'</td>'
       +'<td style="font-size:11px;">₹'+ss.earnings.toLocaleString('en-IN')+'</td>'
       +'<td><span class="adm-badge '+(s.status==='active'?'green':'red')+'">'+(s.status==='active'?'Active':'Suspended')+'</span></td>'
-      +'<td><button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Disable</button></td></tr>';
+      +'<td><button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm '+(s.status==='active'?'adm-btn-ghost':'adm-btn-green')+'">'+(s.status==='active'?'Disable':'Enable')+'</button></td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--adm-text2);padding:24px;">No staff members yet</td></tr>';
 }
 
-function admDisableStaff(id){
+async function admDisableStaff(id){
   var s=STORE.staff.find(function(x){return x.id===id;}); if(!s) return;
-  s.status='suspended'; admRefreshStaff();
-  admShowToast('Staff disabled: '+s.name); STORE.addAdminLog('Disable Staff',s.name);
+  var newStatus=s.status==='active'?'suspended':'active';
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/staff/'+encodeURIComponent(id)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:newStatus})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok) throw new Error(data.error||'Could not update staff status');
+    s.status=newStatus;
+    admRefreshStaff();
+    admShowToast(newStatus==='suspended'?'Staff disabled: '+s.name:'Staff enabled: '+s.name);
+    STORE.addAdminLog(newStatus==='suspended'?'Disable Staff':'Enable Staff',s.name);
+  }catch(err){
+    admShowToast(err.message||'Could not update staff status');
+  }
 }
 
 // ── ANALYTICS ──
@@ -7942,27 +8142,58 @@ STORE.bookEvent = function(evId, ticketTier, qty){
 
 // ── ADMIN EMERGENCY CONTROLS ──
 
+async function admSetEventStatus(eventId,status,options){
+  options=options||{};
+  var ev = STORE.events.find(function(e){ return e.id===eventId; });
+  if(!ev) return;
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/events/'+encodeURIComponent(eventId)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:status})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok) throw new Error(data.error||'Could not update event status');
+    var updated=data.event||{};
+    ev.status=updated.status||status;
+    ev._salesPaused=ev.status==='paused'||ev.status==='blocked';
+    admShowToast(options.toast||('Event updated: '+ev.name));
+    STORE.addAdminLog(options.logType||'Update Event',ev.name);
+    if(options.emitBlocked){
+      VyberaEventBus.emit('event_updated', {id:ev.id, name:ev.name, status:'blocked'});
+      VyberaEventBus.emit('creator_update', {type:'event_emergency_blocked', eventName:ev.name});
+    }else if(status==='paused'){
+      VyberaEventBus.emit('creator_update', {type:'sales_paused', eventName:ev.name, reason:'Admin action'});
+    }
+    vyberaActivity.log((options.logPrefix||'Event updated: ') + ev.name);
+    if(typeof admRenderEvents === 'function') admRenderEvents('all');
+    if(typeof admRefreshDashboard === 'function') admRefreshDashboard();
+  }catch(err){
+    admShowToast(err.message||'Could not update event status');
+  }
+}
+
 // Pause ticket sales for an event
 function admPauseSales(eventId){
   var ev = STORE.events.find(function(e){ return e.id===eventId; });
   if(!ev) return;
-  ev._salesPaused = true;
-  admShowToast('⏸ Sales paused: ' + ev.name);
-  STORE.addAdminLog('Pause Sales', ev.name);
-  VyberaEventBus.emit('creator_update', {type:'sales_paused', eventName:ev.name, reason:'Admin action'});
-  vyberaActivity.log('Sales paused: ' + ev.name);
-  if(typeof admRenderEvents === 'function') admRenderEvents('all');
+  admSetEventStatus(eventId,'paused',{
+    toast:'⏸ Sales paused: '+ev.name,
+    logType:'Pause Sales',
+    logPrefix:'Sales paused: '
+  });
 }
 
 // Resume ticket sales
 function admResumeSales(eventId){
   var ev = STORE.events.find(function(e){ return e.id===eventId; });
   if(!ev) return;
-  ev._salesPaused = false;
-  admShowToast('▶ Sales resumed: ' + ev.name);
-  STORE.addAdminLog('Resume Sales', ev.name);
-  vyberaActivity.log('Sales resumed: ' + ev.name);
-  if(typeof admRenderEvents === 'function') admRenderEvents('all');
+  admSetEventStatus(eventId,'live',{
+    toast:'▶ Sales resumed: '+ev.name,
+    logType:'Resume Sales',
+    logPrefix:'Sales resumed: '
+  });
 }
 
 // Emergency block event
@@ -7970,15 +8201,12 @@ function admEmergencyBlock(eventId){
   var ev = STORE.events.find(function(e){ return e.id===eventId; });
   if(!ev) return;
   if(!confirm('EMERGENCY BLOCK: ' + ev.name + '?\nThis will immediately stop all sales and notify buyers.')) return;
-  ev.status = 'blocked';
-  ev._salesPaused = true;
-  admShowToast('🚨 Event BLOCKED: ' + ev.name);
-  STORE.addAdminLog('Emergency Block', ev.name);
-  VyberaEventBus.emit('event_updated', {id:ev.id, name:ev.name, status:'blocked'});
-  VyberaEventBus.emit('creator_update', {type:'event_emergency_blocked', eventName:ev.name});
-  vyberaActivity.log('🚨 EMERGENCY BLOCK: ' + ev.name);
-  if(typeof admRenderEvents === 'function') admRenderEvents('all');
-  if(typeof admRefreshDashboard === 'function') admRefreshDashboard();
+  admSetEventStatus(eventId,'blocked',{
+    toast:'🚨 Event BLOCKED: '+ev.name,
+    logType:'Emergency Block',
+    logPrefix:'🚨 EMERGENCY BLOCK: ',
+    emitBlocked:true
+  });
 }
 
 // Freeze payout for a creator
@@ -8049,7 +8277,7 @@ function admRenderEvents(tab){
   }
 
   tbody.innerHTML = evs.map(function(ev){
-    var statusCol = {live:'green',pending:'yellow',rejected:'red',blocked:'red'}[ev.status]||'blue';
+    var statusCol = {live:'green',paused:'yellow',pending:'yellow',rejected:'red',blocked:'red'}[ev.status]||'blue';
     var paused = ev._salesPaused;
     var risk = ev.riskScore || 0;
     var riskCol = risk>70?'#ef4444':risk>40?'#eab308':'#22c55e';
@@ -8070,8 +8298,8 @@ function admRenderEvents(tab){
          +'<button onclick="admRejectEvent(\''+ev.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Reject</button>'
         :''
       )
-      +(ev.status==='live'
-        ?(paused
+      +(ev.status==='live'||ev.status==='paused'
+        ?(ev.status==='paused'||paused
           ?'<button onclick="admResumeSales(\''+ev.id+'\')" class="adm-btn adm-btn-sm adm-btn-green">Resume</button>'
           :'<button onclick="admPauseSales(\''+ev.id+'\')" class="adm-btn adm-btn-sm adm-btn-yellow">Pause</button>')
         :'')
@@ -8119,10 +8347,10 @@ VyberaEventBus.on('creator_update', function(data){
 
 // ── ADMIN DASHBOARD REFRESH — include fraud panel ──
 var _baseAdmRefreshDashboard = admRefreshDashboard;
-function admRefreshDashboard(){
+admRefreshDashboard = function(){
   _baseAdmRefreshDashboard();
   admRefreshFraudPanel();
-}
+};
 
 // ── RISK SCORE ON EVENT SUBMISSION ──
 function admGetRiskBadge(score){
@@ -8641,7 +8869,7 @@ function admRefreshStaff(){
       +'<td style="font-size:11px;">₹'+earnings.toLocaleString('en-IN')+'</td>'
       +'<td><span class="adm-badge '+(s.status==='active'?'green':'red')+'">'+(s.status==='active'?'Active':'Suspended')+'</span></td>'
       +'<td><div style="display:flex;gap:3px;flex-wrap:wrap;">'
-      +'<button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Disable</button>'
+      +'<button onclick="admDisableStaff(\''+s.id+'\')" class="adm-btn adm-btn-sm '+(s.status==='active'?'adm-btn-ghost':'adm-btn-green')+'">'+(s.status==='active'?'Disable':'Enable')+'</button>'
       +(frozen?'':'<button onclick="admFreezeInventory(\''+s.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);font-size:9px;">Freeze Inv</button>')
       +(locked?'':'<button onclick="admLockWallet(\''+s.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(234,179,8,.1);color:#eab308;border:1px solid rgba(234,179,8,.3);font-size:9px;">Lock Wallet</button>')
       +'</div></td></tr>';
@@ -9247,17 +9475,58 @@ VyberaEventBus.on('creator_application', function(data){
 });
 
 // ── Admin: Verify creator application ──
-function admVerifyCreatorApp(idx){
+async function admVerifyCreatorApp(idx){
   var apps = STORE.creatorApplications||[];
   var app = apps[idx];
   if(!app) return;
-  app.status = 'Approved';
-  app.verifiedAt = new Date().toISOString();
-  admShowToast('Creator approved: '+app.name);
-  STORE.addAdminLog('Approve Creator KYC', app.name+' — '+app.category);
-  vyberaActivity.log('Creator approved: '+app.name);
-  VyberaEventBus.emit('creator_update', {type:'kyc_approved', name:app.name, email:app.email});
-  admRefreshVerificationQueue();
+  try{
+    var creator=(admCreatorsList||[]).find(function(c){
+      return String(c.email||'').toLowerCase()===String(app.email||'').toLowerCase();
+    });
+    if(creator){
+      var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+      var resp=await fetch(apiUrl('/admin/creators/'+encodeURIComponent(creator.id)+'/status'),{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+        body:JSON.stringify({status:'Approved'})
+      });
+      var data=await readAuthResponse(resp);
+      if(!resp.ok) throw new Error(data.error||'Could not approve creator');
+      creator.status='Approved';
+      if(typeof admRenderCreators==='function') admRenderCreators();
+    }else{
+      var adminToken=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+      var approveResp=await fetch(apiUrl('/admin/creators/status-by-email'),{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
+        body:JSON.stringify({email:app.email,status:'Approved'})
+      });
+      var approveData=await readAuthResponse(approveResp);
+      if(!approveResp.ok) throw new Error(approveData.error||'Could not approve creator');
+      var approved=approveData.creator||{};
+      admCreatorsList.push({
+        id:'CRT-'+approved.id,
+        creatorId:approved.id,
+        name:approved.name,
+        email:approved.email,
+        category:approved.category,
+        status:'Approved',
+        events:0,
+        revenue:0,
+        fee:8
+      });
+      if(typeof admRenderCreators==='function') admRenderCreators();
+    }
+    app.status = 'Approved';
+    app.verifiedAt = new Date().toISOString();
+    admShowToast('Creator approved: '+app.name);
+    STORE.addAdminLog('Approve Creator KYC', app.name+' — '+app.category);
+    vyberaActivity.log('Creator approved: '+app.name);
+    VyberaEventBus.emit('creator_update', {type:'kyc_approved', name:app.name, email:app.email});
+    admRefreshVerificationQueue();
+  }catch(err){
+    admShowToast(err.message||'Could not approve creator');
+  }
 }
 
 function admRejectCreatorApp(idx){
