@@ -53,7 +53,9 @@ app.use((req, res, next) => {
 });
 app.use(bodyParser.json({ limit: "30mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
-app.get("/favicon.ico", (req, res) => res.status(204).end());
+app.get("/favicon.ico", (req, res) => {
+  res.type("image/svg+xml").sendFile(path.join(__dirname, "assets", "blak-tickets-logo.svg"));
+});
 app.use(express.static(path.join(__dirname)));
 app.use("/VYBERA", express.static(path.join(__dirname)));
 app.use("/uploads", express.static(uploadsDir));
@@ -311,6 +313,7 @@ const publicStaff = (member) => ({
   assignedTickets: Number(member.assigned_tickets || 0),
   soldTickets: Number(member.sold_tickets || 0),
   earnings: Number(member.earnings || 0),
+  createdByAdminEmail: member.created_by_admin_email || null,
   createdAt: member.created_at,
 });
 
@@ -319,6 +322,7 @@ const publicAdmin = (admin) => ({
   name: admin.name,
   email: admin.email,
   role: admin.role,
+  isSuperAdmin: Boolean(admin.is_super_admin),
   status: admin.status,
   lastLogin: admin.last_login,
   createdAt: admin.created_at,
@@ -343,10 +347,24 @@ const requireAdmin = async (req, res, next) => {
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const payload = verifyJwt(token);
     if (payload.scope !== "admin") throw new Error("Admin login required");
-    const adminCheck = await pool.query(
-      "SELECT id, status FROM admin_accounts WHERE id=$1",
+    const isSuper = payload.adminType === "super";
+    let adminCheck = await pool.query(
+      isSuper
+        ? "SELECT id, status FROM super_admin_accounts WHERE id=$1"
+        : "SELECT id, status FROM admin_accounts WHERE id=$1",
       [payload.sub],
     );
+    if (
+      !isSuper &&
+      !adminCheck.rows.length &&
+      payload.email
+    ) {
+      adminCheck = await pool.query(
+        "SELECT id, status FROM super_admin_accounts WHERE LOWER(email)=LOWER($1)",
+        [payload.email],
+      );
+      if (adminCheck.rows.length) payload.adminType = "super";
+    }
     if (!adminCheck.rows.length || adminCheck.rows[0].status !== "Active") {
       throw new Error("Admin account not found");
     }
@@ -354,6 +372,73 @@ const requireAdmin = async (req, res, next) => {
     next();
   } catch (err) {
     res.status(401).json({ error: err.message || "Admin login required" });
+  }
+};
+
+const requireSuperAdmin = async (req, res, next) => {
+  try {
+    if (!req.admin) {
+      return res.status(403).json({ error: "Super Admin access required" });
+    }
+    const migrateLegacySuperAdmin = async (legacyAdmin) => {
+      const migrated = await pool.query(
+        `INSERT INTO super_admin_accounts (name, email, password, status, last_login, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT (email) DO UPDATE SET
+           name=EXCLUDED.name,
+           password=EXCLUDED.password,
+           status=EXCLUDED.status,
+           last_login=EXCLUDED.last_login
+         RETURNING id, status`,
+        [
+          legacyAdmin.name,
+          legacyAdmin.email,
+          legacyAdmin.password,
+          legacyAdmin.status,
+          legacyAdmin.last_login,
+          legacyAdmin.created_at,
+        ],
+      );
+      await pool.query("DELETE FROM admin_accounts WHERE id=$1", [
+        legacyAdmin.id,
+      ]);
+      return migrated;
+    };
+    let result =
+      req.admin.adminType === "super"
+        ? await pool.query(
+            "SELECT id, status FROM super_admin_accounts WHERE id=$1",
+            [req.admin.sub],
+          )
+        : await pool.query(
+            "SELECT id, status FROM super_admin_accounts WHERE LOWER(email)=LOWER($1)",
+            [req.admin.email || ""],
+          );
+    if (!result.rows.length) {
+      const legacyById = await pool.query(
+        "SELECT * FROM admin_accounts WHERE id=$1 AND role='Super Admin'",
+        [req.admin.sub],
+      );
+      if (legacyById.rows.length) {
+        result = await migrateLegacySuperAdmin(legacyById.rows[0]);
+      }
+    }
+    if (!result.rows.length && req.admin.email) {
+      const legacyByEmail = await pool.query(
+        "SELECT * FROM admin_accounts WHERE LOWER(email)=LOWER($1) AND role='Super Admin'",
+        [req.admin.email],
+      );
+      if (legacyByEmail.rows.length) {
+        result = await migrateLegacySuperAdmin(legacyByEmail.rows[0]);
+      }
+    }
+    const admin = result.rows[0];
+    if (!admin || admin.status !== "Active") {
+      return res.status(403).json({ error: "Super Admin access required" });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: "Could not verify admin access" });
   }
 };
 
@@ -706,7 +791,19 @@ const initDb = async () => {
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'Super Admin',
+      role TEXT NOT NULL DEFAULT 'Admin',
+      status TEXT NOT NULL DEFAULT 'Active',
+      last_login TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS super_admin_accounts (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'Active',
       last_login TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
@@ -735,7 +832,8 @@ const initDb = async () => {
       ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'Scanner',
       ADD COLUMN IF NOT EXISTS assigned_gate TEXT,
       ADD COLUMN IF NOT EXISTS primary_event_id TEXT,
-      ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE
+      ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE,
+      ADD COLUMN IF NOT EXISTS created_by_admin_email TEXT
   `);
 
   await pool.query(`
@@ -839,11 +937,23 @@ const initDb = async () => {
   `);
 
   const superAdminEmail = String(
-    process.env.SUPERADMIN_EMAIL || "superadmin@vybera.in",
+    process.env.SUPERADMIN_EMAIL || "superadmin@blaktickets.in",
   )
     .trim()
     .toLowerCase();
   const superAdminPassword = process.env.SUPERADMIN_PASSWORD;
+  await pool.query(`
+    INSERT INTO super_admin_accounts (name, email, password, status, last_login, created_at)
+    SELECT name, email, password, status, last_login, created_at
+    FROM admin_accounts
+    WHERE role='Super Admin'
+    ON CONFLICT (email) DO UPDATE SET
+      name=EXCLUDED.name,
+      password=EXCLUDED.password,
+      status=EXCLUDED.status,
+      last_login=EXCLUDED.last_login
+  `);
+  await pool.query("DELETE FROM admin_accounts WHERE role='Super Admin'");
   if (!superAdminPassword) {
     console.warn(
       "SUPERADMIN_PASSWORD is missing. Skipping super-admin account bootstrap.",
@@ -851,7 +961,7 @@ const initDb = async () => {
     return;
   }
   const existingAdmin = await pool.query(
-    "SELECT id, password FROM admin_accounts WHERE email=$1",
+    "SELECT id, password FROM super_admin_accounts WHERE email=$1",
     [superAdminEmail],
   );
   const passwordMatches = existingAdmin.rows[0]
@@ -861,14 +971,17 @@ const initDb = async () => {
     ? existingAdmin.rows[0].password
     : await bcrypt.hash(superAdminPassword, 10);
   await pool.query(
-    `INSERT INTO admin_accounts (name, email, password, role, status)
-     VALUES ($1,$2,$3,'Super Admin','Active')
+    `INSERT INTO super_admin_accounts (name, email, password, status)
+     VALUES ($1,$2,$3,'Active')
      ON CONFLICT (email) DO UPDATE SET
        name=EXCLUDED.name,
        password=EXCLUDED.password,
-       role=EXCLUDED.role,
        status=EXCLUDED.status`,
-    ["Vybera Super Admin", superAdminEmail, passwordHash],
+    ["BLAK Tickets Super Admin", superAdminEmail, passwordHash],
+  );
+  await pool.query(
+    "DELETE FROM admin_accounts WHERE email=$1 AND role='Super Admin'",
+    [superAdminEmail],
   );
 };
 
@@ -2297,6 +2410,36 @@ app.post("/admin/login", async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" });
     }
+    const superResult = await pool.query(
+      "SELECT * FROM super_admin_accounts WHERE email=$1",
+      [email],
+    );
+    const superAdmin = superResult.rows[0];
+    if (
+      superAdmin &&
+      superAdmin.status === "Active" &&
+      (await bcrypt.compare(password, superAdmin.password))
+    ) {
+      const updatedSuper = await pool.query(
+        "UPDATE super_admin_accounts SET last_login=NOW() WHERE id=$1 RETURNING *",
+        [superAdmin.id],
+      );
+      res.json({
+        message: "Super admin login successful",
+        admin: publicAdmin({
+          ...updatedSuper.rows[0],
+          role: "Super Admin",
+          is_super_admin: true,
+        }),
+        token: signJwt({
+          sub: superAdmin.id,
+          email: superAdmin.email,
+          scope: "admin",
+          adminType: "super",
+        }),
+      });
+      return;
+    }
     const result = await pool.query(
       "SELECT * FROM admin_accounts WHERE email=$1",
       [email],
@@ -2309,6 +2452,41 @@ app.post("/admin/login", async (req, res) => {
     ) {
       return res.status(401).json({ error: "Invalid admin email or password" });
     }
+    if (admin.role === "Super Admin") {
+      const migrated = await pool.query(
+        `INSERT INTO super_admin_accounts (name, email, password, status, last_login, created_at)
+         VALUES ($1,$2,$3,$4,NOW(),$5)
+         ON CONFLICT (email) DO UPDATE SET
+           name=EXCLUDED.name,
+           password=EXCLUDED.password,
+           status=EXCLUDED.status,
+           last_login=NOW()
+         RETURNING *`,
+        [
+          admin.name,
+          admin.email,
+          admin.password,
+          admin.status,
+          admin.created_at,
+        ],
+      );
+      await pool.query("DELETE FROM admin_accounts WHERE id=$1", [admin.id]);
+      res.json({
+        message: "Super admin login successful",
+        admin: publicAdmin({
+          ...migrated.rows[0],
+          role: "Super Admin",
+          is_super_admin: true,
+        }),
+        token: signJwt({
+          sub: migrated.rows[0].id,
+          email: migrated.rows[0].email,
+          scope: "admin",
+          adminType: "super",
+        }),
+      });
+      return;
+    }
     const updated = await pool.query(
       "UPDATE admin_accounts SET last_login=NOW() WHERE id=$1 RETURNING *",
       [admin.id],
@@ -2316,7 +2494,12 @@ app.post("/admin/login", async (req, res) => {
     res.json({
       message: "Admin login successful",
       admin: publicAdmin(updated.rows[0]),
-      token: signJwt({ sub: admin.id, email: admin.email, scope: "admin" }),
+      token: signJwt({
+        sub: admin.id,
+        email: admin.email,
+        scope: "admin",
+        adminType: "admin",
+      }),
     });
   } catch (err) {
     console.error("Admin login failed:", err);
@@ -2326,6 +2509,25 @@ app.post("/admin/login", async (req, res) => {
 
 app.get("/admin/session", requireAdmin, async (req, res) => {
   try {
+    if (req.admin.adminType === "super") {
+      const superResult = await pool.query(
+        "SELECT * FROM super_admin_accounts WHERE id=$1",
+        [req.admin.sub],
+      );
+      if (
+        !superResult.rows.length ||
+        superResult.rows[0].status !== "Active"
+      ) {
+        return res.status(401).json({ error: "Admin account not found" });
+      }
+      return res.json({
+        admin: publicAdmin({
+          ...superResult.rows[0],
+          role: "Super Admin",
+          is_super_admin: true,
+        }),
+      });
+    }
     const result = await pool.query(
       "SELECT * FROM admin_accounts WHERE id=$1",
       [req.admin.sub],
@@ -2340,9 +2542,204 @@ app.get("/admin/session", requireAdmin, async (req, res) => {
   }
 });
 
+app.post("/admin/accounts", requireAdmin, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password, role, phone, permissions, notes } =
+      req.body || {};
+    const cleanName = String(name || "").trim();
+    const cleanEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+    const cleanPassword = String(password || "");
+    const requestedRole = String(role || "Admin").trim();
+    const cleanRole = requestedRole === "Super Admin" ? requestedRole : "Admin";
+    if (!cleanName || !cleanEmail || cleanPassword.length < 6) {
+      return res.status(400).json({
+        error:
+          "Name, email, and a temporary password of at least 6 characters are required",
+      });
+    }
+    if (cleanRole === "Super Admin") {
+      return res
+        .status(400)
+        .json({ error: "Create additional Super Admins directly in the DB" });
+    }
+    const result = await pool.query(
+      `INSERT INTO admin_accounts (name, email, password, role, status)
+       VALUES ($1,$2,$3,$4,'Active')
+       RETURNING *`,
+      [
+        cleanName,
+        cleanEmail,
+        await bcrypt.hash(cleanPassword, 10),
+        cleanRole,
+      ],
+    );
+    res.status(201).json({
+      admin: publicAdmin({
+        ...result.rows[0],
+        phone,
+        permissions,
+        notes,
+      }),
+    });
+  } catch (err) {
+    if (err && err.code === "23505") {
+      return res.status(409).json({ error: "Admin email already exists" });
+    }
+    console.error("Admin account create failed:", err);
+    res.status(500).json({ error: "Could not create admin account" });
+  }
+});
+
+app.patch(
+  "/admin/accounts/:adminId/status",
+  requireAdmin,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const adminId = Number(req.params.adminId);
+      const status = String((req.body && req.body.status) || "").trim();
+      if (!adminId || !["Active", "Suspended"].includes(status)) {
+        return res
+          .status(400)
+          .json({ error: "Valid adminId and status are required" });
+      }
+      const result = await pool.query(
+        `UPDATE admin_accounts
+         SET status=$1
+         WHERE id=$2
+         RETURNING *`,
+        [status, adminId],
+      );
+      if (!result.rows.length) {
+        return res.status(404).json({ error: "Admin account not found" });
+      }
+      res.json({ admin: publicAdmin(result.rows[0]) });
+    } catch (err) {
+      console.error("Admin account status update failed:", err);
+      res.status(500).json({ error: "Could not update admin account" });
+    }
+  },
+);
+
+app.delete(
+  "/admin/accounts/:adminId",
+  requireAdmin,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const adminId = Number(req.params.adminId);
+      if (!adminId) {
+        return res.status(400).json({ error: "Valid adminId is required" });
+      }
+      const result = await pool.query(
+        `DELETE FROM admin_accounts
+         WHERE id=$1
+         RETURNING *`,
+        [adminId],
+      );
+      if (!result.rows.length) {
+        return res.json({ success: true, alreadyDeleted: true, adminId });
+      }
+      res.json({ success: true, admin: publicAdmin(result.rows[0]) });
+    } catch (err) {
+      console.error("Admin account delete failed:", err);
+      res.status(500).json({ error: "Could not delete admin account" });
+    }
+  },
+);
+
+app.post("/admin/staff", requireAdmin, async (req, res) => {
+  try {
+    const {
+      name,
+      phone,
+      email,
+      staffId,
+      password,
+      role,
+      assignedGate,
+      permissions,
+      notes,
+    } = req.body || {};
+    const cleanName = String(name || "").trim();
+    const cleanStaffId = String(staffId || "")
+      .trim()
+      .toLowerCase();
+    const cleanPassword = String(password || "");
+    if (!cleanName || !cleanStaffId || cleanPassword.length < 6) {
+      return res.status(400).json({
+        error:
+          "Name, staff login ID, and a temporary password of at least 6 characters are required",
+      });
+    }
+    const id = `STF-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
+    const shareToken = `${cleanPathSegment(cleanStaffId, "staff")}-${crypto.randomBytes(4).toString("hex")}`;
+    const result = await pool.query(
+      `INSERT INTO staff_accounts (id, creator_id, name, staff_id, email, phone, password, role, assigned_gate, share_token, created_by_admin_email)
+       VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING *`,
+      [
+        id,
+        cleanName,
+        cleanStaffId,
+        String(email || "").trim() || null,
+        String(phone || "").trim() || null,
+        await bcrypt.hash(cleanPassword, 10),
+        String(role || "Scanner").trim(),
+        String(assignedGate || "").trim() || null,
+        shareToken,
+        req.admin && req.admin.email ? String(req.admin.email).trim().toLowerCase() : null,
+      ],
+    );
+    res.status(201).json({
+      staff: {
+        ...publicStaff(result.rows[0]),
+        permissions: permissions || null,
+        notes: notes || "",
+      },
+    });
+  } catch (err) {
+    if (err && err.code === "23505") {
+      return res
+        .status(409)
+        .json({ error: "Staff login ID or share link already exists" });
+    }
+    console.error("Admin staff create failed:", err);
+    res.status(500).json({ error: "Could not create staff account" });
+  }
+});
+
+app.delete("/admin/staff/:staffId", requireAdmin, async (req, res) => {
+  try {
+    const staffId = String(req.params.staffId || "").trim();
+    if (!staffId) {
+      return res.status(400).json({ error: "Valid staffId is required" });
+    }
+    const adminEmail =
+      req.admin && req.admin.email ? String(req.admin.email).trim().toLowerCase() : "";
+    const result = await pool.query(
+      `DELETE FROM staff_accounts
+       WHERE id=$1
+         AND creator_id IS NULL
+         AND (created_by_admin_email IS NULL OR LOWER(created_by_admin_email)=LOWER($2))
+       RETURNING *`,
+      [staffId, adminEmail],
+    );
+    if (!result.rows.length) {
+      return res.json({ success: true, alreadyDeleted: true, staffId });
+    }
+    res.json({ success: true, staff: publicStaff(result.rows[0]) });
+  } catch (err) {
+    console.error("Admin staff delete failed:", err);
+    res.status(500).json({ error: "Could not delete staff account" });
+  }
+});
+
 app.get("/admin/snapshot", requireAdmin, async (req, res) => {
   try {
-    const [buyers, creators, events, bookings, payments, staff] =
+    const [buyers, creators, events, bookings, payments, staff, admins] =
       await Promise.all([
         pool.query(`
         SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.city, u.status, u.created_at,
@@ -2376,8 +2773,10 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
           "SELECT * FROM payment_transactions ORDER BY updated_at DESC",
         ),
         pool.query("SELECT * FROM staff_accounts ORDER BY created_at DESC"),
+        pool.query("SELECT * FROM admin_accounts ORDER BY created_at DESC"),
       ]);
     res.json({
+      admins: admins.rows.map(publicAdmin),
       buyers: buyers.rows.map((buyer) => ({
         id: `USR-${buyer.id}`,
         name:
@@ -2776,7 +3175,7 @@ const savePaymentTransaction = async (fields, status, verified, error = "") => {
 };
 
 const payuReturnHtml = (result) => `<!doctype html>
-<html><head><meta charset="utf-8"><title>VYBERA Payment</title></head>
+<html><head><meta charset="utf-8"><title>BLAK Tickets Payment</title></head>
 <body style="background:#000;color:#fff;font-family:Arial,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;">
 <div>Completing payment...</div>
 <script>
@@ -2792,7 +3191,7 @@ const ticketResponse = async (booking) => {
   const qrPayload = makeTicketQrPayload(booking.id, booking.qr_token);
   return {
     id: booking.id,
-    buyerName: booking.buyer_name || booking.buyer_email || "VYBERA Guest",
+    buyerName: booking.buyer_name || booking.buyer_email || "BLAK Tickets Guest",
     buyerEmail: booking.buyer_email,
     eventId: booking.event_id,
     eventName: booking.event_name,
@@ -2855,12 +3254,12 @@ app.post("/payments/payu/initiate", async (req, res) => {
       txnid,
       amount: formatPayuAmount(amount),
       productinfo:
-        cleanPayuText(req.body.productinfo || "VYBERA Event Booking", 100) ||
-        "VYBERA Event Booking",
+        cleanPayuText(req.body.productinfo || "BLAK Tickets Event Booking", 100) ||
+        "BLAK Tickets Event Booking",
       firstname:
-        cleanPayuText(req.body.firstname || "VYBERA Guest", 60) ||
-        "VYBERA Guest",
-      email: String(req.body.email || "guest@vybera.in").slice(0, 100),
+        cleanPayuText(req.body.firstname || "BLAK Tickets Guest", 60) ||
+        "BLAK Tickets Guest",
+      email: String(req.body.email || "guest@blaktickets.in").slice(0, 100),
       phone:
         String(req.body.phone || "9999999999")
           .replace(/\D/g, "")
@@ -3329,7 +3728,7 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
     if (parts.length !== 3 || parts[0] !== "VYBERA-TICKET") {
       return res
         .status(400)
-        .json({ result: "invalid", error: "Invalid VYBERA ticket QR" });
+        .json({ result: "invalid", error: "Invalid BLAK Tickets ticket QR" });
     }
     await client.query("BEGIN");
     const scanIdentity = req.scanIdentity || {};
@@ -3794,6 +4193,79 @@ app.post("/login", async (req, res) => {
     res.status(500).json({
       error: "Login failed",
     });
+  }
+});
+
+app.post("/auth/reset-password", async (req, res) => {
+  try {
+    const identifier = String(
+      (req.body && (req.body.email || req.body.identifier || req.body.loginId)) ||
+        "",
+    )
+      .trim()
+      .toLowerCase();
+    const newPassword = String((req.body && req.body.password) || "");
+    if (!identifier || newPassword.length < 6) {
+      return res.status(400).json({
+        error: "Email/login ID and a password of at least 6 characters are required",
+      });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    const digits = identifier.replace(/\D/g, "");
+    const targets = [
+      {
+        type: "Super Admin",
+        sql: "UPDATE super_admin_accounts SET password=$1 WHERE LOWER(email)=LOWER($2) AND status='Active' RETURNING id",
+        params: [hash, identifier],
+      },
+      {
+        type: "Admin",
+        sql: "UPDATE admin_accounts SET password=$1 WHERE LOWER(email)=LOWER($2) AND status='Active' RETURNING id",
+        params: [hash, identifier],
+      },
+      {
+        type: "Staff",
+        sql: `UPDATE staff_accounts
+              SET password=$1
+              WHERE status='active'
+                AND (
+                  LOWER(staff_id)=LOWER($2)
+                  OR LOWER(COALESCE(email,''))=LOWER($2)
+                  OR regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')=$3
+                )
+              RETURNING id`,
+        params: [hash, identifier, digits],
+      },
+      {
+        type: "Creator",
+        sql: `UPDATE creator_accounts
+              SET password=$1
+              WHERE LOWER(email)=LOWER($2)
+                 OR LOWER(name)=LOWER($2)
+                 OR LOWER(split_part(email, '@', 1))=LOWER(split_part($2, '@', 1))
+              RETURNING id`,
+        params: [hash, identifier],
+      },
+      {
+        type: "Buyer",
+        sql: "UPDATE users SET password=$1 WHERE LOWER(email)=LOWER($2) AND COALESCE(status,'active') NOT IN ('suspended','deleted','blocked') RETURNING id",
+        params: [hash, identifier],
+      },
+    ];
+    for (const target of targets) {
+      const result = await pool.query(target.sql, target.params);
+      if (result.rows.length) {
+        return res.json({
+          success: true,
+          accountType: target.type,
+          message: "Password updated. You can sign in with the new password.",
+        });
+      }
+    }
+    res.status(404).json({ error: "No active account found for this email/login ID" });
+  } catch (err) {
+    console.error("Password reset failed:", err);
+    res.status(500).json({ error: "Could not reset password" });
   }
 });
 
