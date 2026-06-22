@@ -7,6 +7,7 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const QRCode = require("qrcode");
+const nodemailer = require("nodemailer");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 process.on("unhandledRejection", (err) => {
@@ -101,6 +102,41 @@ const hasTwilioVerifyConfig = () =>
 if (!hasTwilioVerifyConfig()) {
   console.warn(
     "Signup OTP is disabled until TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID are added to .env.",
+  );
+}
+
+// ── Email transporter ───────────────────────────────────────────────────────
+const createMailTransporter = () => {
+  if (process.env.SMTP_SERVICE) {
+    return nodemailer.createTransport({
+      service: process.env.SMTP_SERVICE,
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+};
+
+const hasSmtpConfig = () =>
+  (process.env.SMTP_SERVICE || process.env.SMTP_HOST) &&
+  process.env.SMTP_USER &&
+  process.env.SMTP_PASS;
+
+if (!hasSmtpConfig()) {
+  console.warn(
+    "Email (forgot password) is disabled until SMTP_SERVICE/SMTP_HOST, SMTP_USER, and SMTP_PASS are added to .env.",
   );
 }
 
@@ -1312,9 +1348,7 @@ app.post("/creator/login", async (req, res) => {
             req.body.login),
       ),
     ).trim();
-    const cleanEmail = loginIdentifier
-      .trim()
-      .toLowerCase();
+    const cleanEmail = loginIdentifier.trim().toLowerCase();
     const password = String((req.body && req.body.password) || "");
     if (!cleanEmail || !password) {
       return res
@@ -2854,39 +2888,26 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
   }
 });
 
-// Update event status (pause/block/resume)
 app.patch("/admin/events/:eventId/status", requireAdmin, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { status } = req.body || {};
-
     if (!eventId || !status) {
       return res.status(400).json({ error: "eventId and status are required" });
     }
-
-    // Validate status value
-    const validStatuses = [
-      "live",
-      "paused",
-      "blocked",
-      "completed",
-      "cancelled",
-    ];
+    const validStatuses = ["live", "paused", "blocked", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         error: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
       });
     }
-
     const result = await pool.query(
       "UPDATE creator_events SET status=$1 WHERE id=$2 RETURNING *",
       [status, eventId],
     );
-
     if (!result.rows.length) {
       return res.status(404).json({ error: "Event not found" });
     }
-
     res.json({ success: true, event: publicCreatorEvent(result.rows[0]) });
   } catch (err) {
     console.error("Event status update failed:", err);
@@ -2894,23 +2915,19 @@ app.patch("/admin/events/:eventId/status", requireAdmin, async (req, res) => {
   }
 });
 
-// Update buyer status (active/suspended)
 app.patch("/admin/users/:userId/status", requireAdmin, async (req, res) => {
   try {
     const rawUserId = String(req.params.userId || "").replace(/^USR-/i, "");
     const userId = Number(rawUserId);
     const status = normalizeUserStatus((req.body || {}).status);
-
     if (!Number.isInteger(userId) || userId < 1 || !status) {
       return res.status(400).json({ error: "userId and status are required" });
     }
-
     if (![USER_ACTIVE_STATUS, "Suspended"].includes(status)) {
       return res
         .status(400)
         .json({ error: "Invalid status. Must be Active or Suspended" });
     }
-
     const result = await pool.query(
       `UPDATE users
        SET status=$1
@@ -2919,11 +2936,9 @@ app.patch("/admin/users/:userId/status", requireAdmin, async (req, res) => {
          profile_image_url, profile_image_key, profile_image_storage, status`,
       [status, userId],
     );
-
     if (!result.rows.length) {
       return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
     }
-
     res.json({ success: true, user: publicUser(result.rows[0]) });
   } catch (err) {
     console.error("User status update failed:", err);
@@ -2936,19 +2951,12 @@ app.patch("/admin/creators/:creatorId/status", requireAdmin, async (req, res) =>
     const rawCreatorId = String(req.params.creatorId || "").replace(/^CRT-/i, "");
     const creatorId = Number(rawCreatorId);
     const status = String((req.body || {}).status || "").trim();
-
     if (!Number.isInteger(creatorId) || creatorId < 1 || !status) {
-      return res
-        .status(400)
-        .json({ error: "creatorId and status are required" });
+      return res.status(400).json({ error: "creatorId and status are required" });
     }
-
     if (!["Pending", "Approved", "Rejected"].includes(status)) {
-      return res
-        .status(400)
-        .json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
+      return res.status(400).json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
     }
-
     const result = await pool.query(
       `UPDATE creator_accounts
        SET kyc_status=$1
@@ -2956,11 +2964,9 @@ app.patch("/admin/creators/:creatorId/status", requireAdmin, async (req, res) =>
        RETURNING id, name, email, phone, category, about, kyc_status, created_at`,
       [status, creatorId],
     );
-
     if (!result.rows.length) {
       return res.status(404).json({ error: "Creator account not found" });
     }
-
     res.json({ success: true, creator: publicCreator(result.rows[0]) });
   } catch (err) {
     console.error("Creator status update failed:", err);
@@ -2970,21 +2976,14 @@ app.patch("/admin/creators/:creatorId/status", requireAdmin, async (req, res) =>
 
 app.patch("/admin/creators/status-by-email", requireAdmin, async (req, res) => {
   try {
-    const email = String((req.body || {}).email || "")
-      .trim()
-      .toLowerCase();
+    const email = String((req.body || {}).email || "").trim().toLowerCase();
     const status = String((req.body || {}).status || "").trim();
-
     if (!email || !status) {
       return res.status(400).json({ error: "email and status are required" });
     }
-
     if (!["Pending", "Approved", "Rejected"].includes(status)) {
-      return res
-        .status(400)
-        .json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
+      return res.status(400).json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
     }
-
     const result = await pool.query(
       `UPDATE creator_accounts
        SET kyc_status=$1
@@ -2992,11 +2991,9 @@ app.patch("/admin/creators/status-by-email", requireAdmin, async (req, res) => {
        RETURNING id, name, email, phone, category, about, kyc_status, created_at`,
       [status, email],
     );
-
     if (!result.rows.length) {
       return res.status(404).json({ error: "Creator account not found" });
     }
-
     res.json({ success: true, creator: publicCreator(result.rows[0]) });
   } catch (err) {
     console.error("Creator status update by email failed:", err);
@@ -3004,31 +3001,23 @@ app.patch("/admin/creators/status-by-email", requireAdmin, async (req, res) => {
   }
 });
 
-// Update staff status (active/suspended)
 app.patch("/admin/staff/:staffId/status", requireAdmin, async (req, res) => {
   try {
     const { staffId } = req.params;
     const { status } = req.body || {};
-
     if (!staffId || !status) {
       return res.status(400).json({ error: "staffId and status are required" });
     }
-
     if (status !== "active" && status !== "suspended") {
-      return res
-        .status(400)
-        .json({ error: "Invalid status. Must be active or suspended" });
+      return res.status(400).json({ error: "Invalid status. Must be active or suspended" });
     }
-
     const result = await pool.query(
       "UPDATE staff_accounts SET status=$1 WHERE id=$2 RETURNING *",
       [status, staffId],
     );
-
     if (!result.rows.length) {
       return res.status(404).json({ error: "Staff member not found" });
     }
-
     res.json({ success: true, staff: publicStaff(result.rows[0]) });
   } catch (err) {
     console.error("Staff status update failed:", err);
@@ -3071,9 +3060,7 @@ app.post("/r2/ticket-record", async (req, res) => {
     res.json(saved);
   } catch (err) {
     console.error("Ticket record upload failed:", err);
-    res
-      .status(500)
-      .json({ error: err.message || "Ticket record upload failed" });
+    res.status(500).json({ error: err.message || "Ticket record upload failed" });
   }
 });
 
@@ -3216,54 +3203,34 @@ const ticketResponse = async (booking) => {
 app.post("/payments/payu/initiate", async (req, res) => {
   try {
     if (!payuConfig.key || !payuConfig.salt) {
-      return res
-        .status(500)
-        .json({ error: "PAYU_KEY and PAYU_SALT must be configured" });
+      return res.status(500).json({ error: "PAYU_KEY and PAYU_SALT must be configured" });
     }
-
     const amount = Number(req.body && req.body.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      return res
-        .status(400)
-        .json({ error: "Valid amount in rupees is required" });
+      return res.status(400).json({ error: "Valid amount in rupees is required" });
     }
-
-    // Validate event status before initiating payment
     const { eventId } = req.body;
     if (eventId) {
       const eventResult = await pool.query(
         "SELECT id, status FROM creator_events WHERE id=$1",
         [eventId],
       );
-
-      if (
-        !eventResult.rows.length ||
-        !isEventBookable(eventResult.rows[0].status)
-      ) {
+      if (!eventResult.rows.length || !isEventBookable(eventResult.rows[0].status)) {
         return res.status(404).json({ error: EVENT_NOT_FOUND_ERROR });
       }
     }
-
     const origin = `${req.protocol}://${req.get("host")}`;
     const txnid = String(
-      req.body.txnid ||
-        `VYB${Date.now()}${crypto.randomBytes(3).toString("hex")}`,
+      req.body.txnid || `VYB${Date.now()}${crypto.randomBytes(3).toString("hex")}`,
     ).slice(0, 40);
     const fields = {
       key: payuConfig.key,
       txnid,
       amount: formatPayuAmount(amount),
-      productinfo:
-        cleanPayuText(req.body.productinfo || "BLAK Tickets Event Booking", 100) ||
-        "BLAK Tickets Event Booking",
-      firstname:
-        cleanPayuText(req.body.firstname || "BLAK Tickets Guest", 60) ||
-        "BLAK Tickets Guest",
+      productinfo: cleanPayuText(req.body.productinfo || "BLAK Tickets Event Booking", 100) || "BLAK Tickets Event Booking",
+      firstname: cleanPayuText(req.body.firstname || "BLAK Tickets Guest", 60) || "BLAK Tickets Guest",
       email: String(req.body.email || "guest@blaktickets.in").slice(0, 100),
-      phone:
-        String(req.body.phone || "9999999999")
-          .replace(/\D/g, "")
-          .slice(-10) || "9999999999",
+      phone: String(req.body.phone || "9999999999").replace(/\D/g, "").slice(-10) || "9999999999",
       surl: `${origin}/payments/payu/success?booking=${encodeURIComponent(txnid)}`,
       furl: `${origin}/payments/payu/failure?booking=${encodeURIComponent(txnid)}`,
       udf1: cleanPayuText(req.body.bookingId || "", 64),
@@ -3309,13 +3276,7 @@ app.post("/payments/payu/success", async (req, res) => {
     );
   } catch (err) {
     console.error("PayU success handling failed:", err);
-    res.send(
-      payuReturnHtml({
-        verified: false,
-        status: "error",
-        error: err.message || "PayU success handling failed",
-      }),
-    );
+    res.send(payuReturnHtml({ verified: false, status: "error", error: err.message || "PayU success handling failed" }));
   }
 });
 
@@ -3348,13 +3309,7 @@ app.post("/payments/payu/failure", async (req, res) => {
     );
   } catch (err) {
     console.error("PayU failure handling failed:", err);
-    res.send(
-      payuReturnHtml({
-        verified: false,
-        status: "error",
-        error: err.message || "PayU failure handling failed",
-      }),
-    );
+    res.send(payuReturnHtml({ verified: false, status: "error", error: err.message || "PayU failure handling failed" }));
   }
 });
 
@@ -3365,34 +3320,23 @@ app.post("/bookings", async (req, res) => {
     if (!booking.id) {
       return res.status(400).json({ error: "booking.id is required" });
     }
-
-    // Validate event status - prevent booking if event is paused, blocked, or cancelled
     if (booking.eventId) {
       const eventResult = await client.query(
         "SELECT id, status, name FROM creator_events WHERE id=$1",
         [booking.eventId],
       );
-
-      if (
-        !eventResult.rows.length ||
-        !isEventBookable(eventResult.rows[0].status)
-      ) {
+      if (!eventResult.rows.length || !isEventBookable(eventResult.rows[0].status)) {
         return res.status(404).json({ error: EVENT_NOT_FOUND_ERROR });
       }
     }
-
     const ticketJson = `data:application/json;base64,${Buffer.from(
-      JSON.stringify({
-        booking,
-        storedAt: new Date().toISOString(),
-      }),
+      JSON.stringify({ booking, storedAt: new Date().toISOString() }),
     ).toString("base64")}`;
     const ticketRecord = await saveAsset({
       fileName: `${booking.id}.json`,
       folder: "tickets",
       dataUrl: ticketJson,
     });
-
     let userId = booking.userId || null;
     const buyerEmail = String(booking.buyerEmail || "").trim();
     let buyerUser = null;
@@ -3516,33 +3460,22 @@ app.post("/bookings", async (req, res) => {
           let canRecordSale = true;
           if (assignment) {
             assignmentMode =
-              String(assignment.allocation_mode || "creator_quota") ===
-              "staff_owned"
+              String(assignment.allocation_mode || "creator_quota") === "staff_owned"
                 ? "staff_owned"
                 : "creator_quota";
             salePrice =
               assignmentMode === "staff_owned"
-                ? Number(
-                    assignment.resale_price ||
-                      assignment.price ||
-                      booking.price ||
-                      0,
-                  )
+                ? Number(assignment.resale_price || assignment.price || booking.price || 0)
                 : Number(assignment.price || booking.price || 0);
             staffSaleTotal = salePrice * cleanQty;
             commission =
               assignmentMode === "creator_quota"
-                ? Math.round(
-                    (staffSaleTotal * Number(assignment.commission_rate || 0)) /
-                      100,
-                  )
+                ? Math.round((staffSaleTotal * Number(assignment.commission_rate || 0)) / 100)
                 : 0;
-            revenueOwner =
-              assignmentMode === "staff_owned" ? "staff" : "creator";
+            revenueOwner = assignmentMode === "staff_owned" ? "staff" : "creator";
             assignmentId = assignment.id;
             saleEventName = booking.eventName || assignment.event_name;
-            const remaining =
-              Number(assignment.qty || 0) - Number(assignment.sold_count || 0);
+            const remaining = Number(assignment.qty || 0) - Number(assignment.sold_count || 0);
             canRecordSale = remaining >= cleanQty;
           } else if (!salePrice && booking.total) {
             salePrice = Number(booking.total || 0) / cleanQty;
@@ -3614,7 +3547,6 @@ app.post("/bookings", async (req, res) => {
       );
     }
     await client.query("COMMIT");
-
     res.json({ booking: await ticketResponse(savedBooking.rows[0]) });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -3702,9 +3634,7 @@ app.get("/profile/creator-events", requireProfileIdentity, async (req, res) => {
 app.get("/bookings/:bookingId/ticket", async (req, res) => {
   try {
     const bookingId = String(req.params.bookingId || "").trim();
-    let result = await pool.query("SELECT * FROM bookings WHERE id=$1", [
-      bookingId,
-    ]);
+    let result = await pool.query("SELECT * FROM bookings WHERE id=$1", [bookingId]);
     if (!result.rows.length)
       return res.status(404).json({ error: "Ticket not found" });
     if (!result.rows[0].qr_token) {
@@ -3726,9 +3656,7 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
     const payload = String((req.body && req.body.qrPayload) || "").trim();
     const parts = payload.split("|");
     if (parts.length !== 3 || parts[0] !== "VYBERA-TICKET") {
-      return res
-        .status(400)
-        .json({ result: "invalid", error: "Invalid BLAK Tickets ticket QR" });
+      return res.status(400).json({ result: "invalid", error: "Invalid BLAK Tickets ticket QR" });
     }
     await client.query("BEGIN");
     const scanIdentity = req.scanIdentity || {};
@@ -3763,38 +3691,27 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
     }
     if (!result.rows.length) {
       await client.query("ROLLBACK");
-      return res
-        .status(404)
-        .json({ result: "invalid", error: "Ticket not found" });
+      return res.status(404).json({ result: "invalid", error: "Ticket not found" });
     }
     const booking = result.rows[0];
     if (booking.status === "refunded") {
       await client.query("ROLLBACK");
-      return res
-        .status(409)
-        .json({ result: "invalid", error: "Ticket was refunded" });
+      return res.status(409).json({ result: "invalid", error: "Ticket was refunded" });
     }
     if (booking.scanned_at) {
       await client.query("ROLLBACK");
-      return res
-        .status(409)
-        .json({ result: "duplicate", booking: await ticketResponse(booking) });
+      return res.status(409).json({ result: "duplicate", booking: await ticketResponse(booking) });
     }
     const updated = await client.query(
       "UPDATE bookings SET scanned_at=NOW() WHERE id=$1 RETURNING *",
       [booking.id],
     );
     await client.query("COMMIT");
-    res.json({
-      result: "valid",
-      booking: await ticketResponse(updated.rows[0]),
-    });
+    res.json({ result: "valid", booking: await ticketResponse(updated.rows[0]) });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Ticket scan failed:", err);
-    res
-      .status(500)
-      .json({ result: "invalid", error: "Could not validate ticket" });
+    res.status(500).json({ result: "invalid", error: "Could not validate ticket" });
   } finally {
     client.release();
   }
@@ -3812,13 +3729,7 @@ const twilioAuthHeader = () =>
 
 const providerErrorMessage = (data, fallback) => {
   if (!data || typeof data !== "object") return fallback;
-  return (
-    data.message ||
-    data.error ||
-    data.error_message ||
-    data.description ||
-    fallback
-  );
+  return data.message || data.error || data.error_message || data.description || fallback;
 };
 
 const assertTwilioConfig = () => {
@@ -3846,20 +3757,11 @@ const verifySignupOtpToken = async (token, countryCode, phone) => {
   const identifier = `${String(countryCode || "+91").replace(/\D/g, "")}${String(phone || "").replace(/\D/g, "")}`;
   try {
     const payload = verifyJwt(token);
-    if (
-      payload.scope !== "signup-phone-otp" ||
-      payload.identifier !== identifier
-    ) {
+    if (payload.scope !== "signup-phone-otp" || payload.identifier !== identifier) {
       throw new Error("OTP verification does not match this phone number");
     }
     return payload;
   } catch (err) {
-    if (
-      String(token || "").split(".").length === 3 &&
-      err.message !== "Invalid token signature"
-    ) {
-      throw err;
-    }
     throw err;
   }
 };
@@ -3867,14 +3769,9 @@ const verifySignupOtpToken = async (token, countryCode, phone) => {
 const sendSignupOtp = async (req, res) => {
   try {
     assertTwilioConfig();
-    const identifier = String((req.body && req.body.identifier) || "").replace(
-      /\D/g,
-      "",
-    );
+    const identifier = String((req.body && req.body.identifier) || "").replace(/\D/g, "");
     if (!/^91\d{10}$/.test(identifier)) {
-      return res.status(400).json({
-        error: "A valid India mobile number with country code is required",
-      });
+      return res.status(400).json({ error: "A valid India mobile number with country code is required" });
     }
     const params = new URLSearchParams({
       To: `+${identifier}`,
@@ -3893,30 +3790,19 @@ const sendSignupOtp = async (req, res) => {
     res.json({ sent: true, identifier, data });
   } catch (err) {
     console.error("Twilio OTP send failed:", err);
-    res
-      .status(err.status || 500)
-      .json({ sent: false, error: err.message || "Twilio OTP send failed" });
+    res.status(err.status || 500).json({ sent: false, error: err.message || "Twilio OTP send failed" });
   }
 };
 
 const verifySignupOtp = async (req, res) => {
   try {
     assertTwilioConfig();
-    const identifier = String((req.body && req.body.identifier) || "").replace(
-      /\D/g,
-      "",
-    );
+    const identifier = String((req.body && req.body.identifier) || "").replace(/\D/g, "");
     const otp = String((req.body && req.body.otp) || "").trim();
     if (!/^91\d{10}$/.test(identifier) || !/^\d{4,8}$/.test(otp)) {
-      return res.status(400).json({
-        verified: false,
-        error: "A valid mobile number and OTP are required",
-      });
+      return res.status(400).json({ verified: false, error: "A valid mobile number and OTP are required" });
     }
-    const params = new URLSearchParams({
-      To: `+${identifier}`,
-      Code: otp,
-    });
+    const params = new URLSearchParams({ To: `+${identifier}`, Code: otp });
     const response = await fetch(twilioVerifyUrl("Check"), {
       method: "POST",
       headers: {
@@ -3928,21 +3814,12 @@ const verifySignupOtp = async (req, res) => {
     const data = await response.json().catch(() => ({}));
     assertProviderSuccess(response, data, "Twilio OTP verification failed");
     if (data.status !== "approved" && !data.valid) {
-      return res
-        .status(400)
-        .json({ verified: false, error: "Invalid OTP. Try again.", data });
+      return res.status(400).json({ verified: false, error: "Invalid OTP. Try again.", data });
     }
-    res.json({
-      verified: true,
-      accessToken: makeSignupOtpToken(identifier),
-      data,
-    });
+    res.json({ verified: true, accessToken: makeSignupOtpToken(identifier), data });
   } catch (err) {
     console.error("Twilio OTP verification failed:", err);
-    res.status(err.status || 500).json({
-      verified: false,
-      error: err.message || "Twilio OTP verification failed",
-    });
+    res.status(err.status || 500).json({ verified: false, error: err.message || "Twilio OTP verification failed" });
   }
 };
 
@@ -3952,23 +3829,16 @@ const verifySignupOtpAccessToken = async (req, res) => {
       (req.body && (req.body.accessToken || req.body["access-token"])) || "",
     ).trim();
     if (!accessToken) {
-      return res
-        .status(400)
-        .json({ verified: false, error: "OTP access token is required" });
+      return res.status(400).json({ verified: false, error: "OTP access token is required" });
     }
     const payload = verifyJwt(accessToken);
     if (payload.scope !== "signup-phone-otp") {
-      return res
-        .status(400)
-        .json({ verified: false, error: "Invalid OTP token" });
+      return res.status(400).json({ verified: false, error: "Invalid OTP token" });
     }
     res.json({ verified: true, data: payload });
   } catch (err) {
     console.error("OTP token verification failed:", err);
-    res.status(err.status || 500).json({
-      verified: false,
-      error: err.message || "OTP token verification failed",
-    });
+    res.status(err.status || 500).json({ verified: false, error: err.message || "OTP token verification failed" });
   }
 };
 
@@ -3982,98 +3852,45 @@ app.post("/otp/twilio/verify-token", verifySignupOtpAccessToken);
 // SIGNUP API
 app.post("/signup", async (req, res) => {
   try {
-    const {
-      firstName,
-      lastName,
-      username,
-      email,
-      phone,
-      countryCode,
-      city,
-      password,
-      otpAccessToken,
-    } = req.body;
-
+    const { firstName, lastName, username, email, phone, countryCode, city, password, otpAccessToken } = req.body;
     const cleanFirstName = String(firstName || username || "").trim();
     const cleanLastName = String(lastName || "").trim();
-    const cleanEmail = String(email || "")
-      .trim()
-      .toLowerCase();
+    const cleanEmail = String(email || "").trim().toLowerCase();
     const cleanPhone = String(phone || "").trim();
     const cleanCountryCode = String(countryCode || "+91").trim();
     const cleanCity = String(city || "").trim();
-
     if (!cleanFirstName || !cleanEmail || !password) {
-      return res.status(400).json({
-        error: "First name, email, and password are required",
-      });
+      return res.status(400).json({ error: "First name, email, and password are required" });
     }
     if (!cleanPhone) {
       return res.status(400).json({ error: "Phone number is required" });
     }
     if (!otpAccessToken) {
-      return res.status(400).json({
-        error:
-          "Please verify your phone number with OTP before creating an account",
-      });
+      return res.status(400).json({ error: "Please verify your phone number with OTP before creating an account" });
     }
     await verifySignupOtpToken(otpAccessToken, cleanCountryCode, cleanPhone);
-
     const hashedPassword = await bcrypt.hash(password, 10);
-    const displayName = [cleanFirstName, cleanLastName]
-      .filter(Boolean)
-      .join(" ");
-
+    const displayName = [cleanFirstName, cleanLastName].filter(Boolean).join(" ");
     const result = await pool.query(
-      `INSERT INTO users (
-        username,
-        first_name,
-        last_name,
-        email,
-        phone,
-        country_code,
-        city,
-        password
-      )
+      `INSERT INTO users (username, first_name, last_name, email, phone, country_code, city, password)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
       RETURNING id, username, first_name, last_name, email, phone, country_code, city, created_at`,
-      [
-        displayName || cleanFirstName,
-        cleanFirstName,
-        cleanLastName,
-        cleanEmail,
-        cleanPhone,
-        cleanCountryCode,
-        cleanCity,
-        hashedPassword,
-      ],
+      [displayName || cleanFirstName, cleanFirstName, cleanLastName, cleanEmail, cleanPhone, cleanCountryCode, cleanCity, hashedPassword],
     );
-
-    res.json({
-      message: "Signup successful",
-      user: result.rows[0],
-    });
+    res.json({ message: "Signup successful", user: result.rows[0] });
   } catch (err) {
     console.error(err);
-
     if (err.code === "23505") {
-      return res.status(409).json({
-        error: "An account with this email already exists",
-      });
+      return res.status(409).json({ error: "An account with this email already exists" });
     }
-
-    res.status(500).json({
-      error: "Signup failed",
-    });
+    res.status(500).json({ error: "Signup failed" });
   }
 });
 
 app.post("/social-login", async (req, res) => {
   try {
     const { name, email, photoURL, provider } = req.body || {};
-    const cleanEmail = String(email || "")
-      .trim()
-      .toLowerCase();
+    const cleanEmail = String(email || "").trim().toLowerCase();
     const cleanName = String(name || "Google User").trim();
     if (!cleanEmail) {
       return res.status(400).json({ error: "Email is required" });
@@ -4088,11 +3905,8 @@ app.post("/social-login", async (req, res) => {
     if (result.rows.length && !isUserActive(result.rows[0].status)) {
       return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
     }
-
     const upsert = await pool.query(
-      `INSERT INTO users (
-        username, first_name, last_name, email, password, auth_provider, profile_image_url
-      )
+      `INSERT INTO users (username, first_name, last_name, email, password, auth_provider, profile_image_url)
       VALUES ($1,$2,$3,$4,$5,$6,$7)
       ON CONFLICT (email) DO UPDATE SET
         username=EXCLUDED.username,
@@ -4102,15 +3916,7 @@ app.post("/social-login", async (req, res) => {
         profile_image_url=COALESCE(users.profile_image_url, EXCLUDED.profile_image_url)
       RETURNING id, username, first_name, last_name, email, phone, country_code, city,
         profile_image_url, profile_image_key, profile_image_storage, auth_provider, status`,
-      [
-        cleanName,
-        firstName,
-        lastName,
-        cleanEmail,
-        "oauth-provider",
-        provider || "google",
-        photoURL || "",
-      ],
+      [cleanName, firstName, lastName, cleanEmail, "oauth-provider", provider || "google", photoURL || ""],
     );
     const user = upsert.rows[0];
     res.json({
@@ -4129,58 +3935,27 @@ app.post("/social-login", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    const cleanEmail = String(email || "")
-      .trim()
-      .toLowerCase();
-
+    const cleanEmail = String(email || "").trim().toLowerCase();
     if (!cleanEmail || !password) {
-      return res.status(400).json({
-        error: "Email and password are required",
-      });
+      return res.status(400).json({ error: "Email and password are required" });
     }
-
     const result = await pool.query(
-      `SELECT
-        id,
-        username,
-        first_name,
-        last_name,
-        email,
-        phone,
-        country_code,
-        city,
-        profile_image_url,
-        profile_image_key,
-        profile_image_storage,
-        password,
-        status
-      FROM users
-      WHERE email=$1`,
+      `SELECT id, username, first_name, last_name, email, phone, country_code, city,
+        profile_image_url, profile_image_key, profile_image_storage, password, status
+      FROM users WHERE email=$1`,
       [cleanEmail],
     );
-
     if (result.rows.length === 0) {
-      return res.status(400).json({
-        error: "User not found",
-      });
+      return res.status(400).json({ error: "User not found" });
     }
-
     const user = result.rows[0];
     if (!isUserActive(user.status)) {
-      return res.status(404).json({
-        error: USER_NOT_FOUND_ERROR,
-      });
+      return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
     }
-
     const validPassword = await bcrypt.compare(password, user.password);
-
     if (!validPassword) {
-      return res.status(400).json({
-        error: "Invalid password",
-      });
+      return res.status(400).json({ error: "Invalid password" });
     }
-
     res.json({
       message: "Login successful",
       user: publicUser(user),
@@ -4189,21 +3964,128 @@ app.post("/login", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-
-    res.status(500).json({
-      error: "Login failed",
-    });
+    res.status(500).json({ error: "Login failed" });
   }
 });
 
+// ── Forgot Password: Send reset email ──────────────────────────────────────
+app.post("/auth/forgot-password", async (req, res) => {
+  try {
+    if (!hasSmtpConfig()) {
+      return res.status(500).json({ error: "Email service is not configured on this server" });
+    }
+
+    const email = String((req.body && req.body.email) || "").trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    // Look up user (but don't reveal whether email exists — security best practice)
+    const result = await pool.query(
+      "SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND COALESCE(status,'Active') NOT IN ('Suspended','Blocked','Inactive') LIMIT 1",
+      [email],
+    );
+
+    if (result.rows.length) {
+      const ttlMinutes = Number(process.env.PASSWORD_RESET_TTL_MINUTES || 10);
+      const token = signJwt({ scope: "password-reset", email }, ttlMinutes * 60);
+      const baseUrl = (process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3003}`).replace(/\/$/, "");
+      const resetLink = `${baseUrl}/?reset_token=${encodeURIComponent(token)}`;
+
+      const transporter = createMailTransporter();
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: email,
+        subject: "Reset your BLAK Tickets password",
+        html: `
+          <!doctype html>
+          <html>
+          <body style="margin:0;padding:0;background:#0a0a0a;font-family:Arial,sans-serif;color:#ffffff;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:40px auto;background:#141414;border-radius:12px;overflow:hidden;">
+              <tr>
+                <td style="padding:32px 40px 24px;text-align:center;background:#1a1a1a;">
+                  <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:1px;">BLAK Tickets</h1>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:32px 40px;">
+                  <h2 style="margin:0 0 16px;font-size:18px;color:#ffffff;">Reset Your Password</h2>
+                  <p style="margin:0 0 24px;color:#aaaaaa;font-size:14px;line-height:1.6;">
+                    We received a request to reset the password for your account. Click the button below to set a new password. This link expires in <strong style="color:#ffffff;">${ttlMinutes} minutes</strong>.
+                  </p>
+                  <div style="text-align:center;margin:28px 0;">
+                    <a href="${resetLink}" style="display:inline-block;padding:14px 32px;background:#ffffff;color:#000000;font-weight:700;font-size:15px;text-decoration:none;border-radius:8px;letter-spacing:0.5px;">
+                      Reset Password
+                    </a>
+                  </div>
+                  <p style="margin:24px 0 0;color:#666666;font-size:12px;line-height:1.6;">
+                    If you didn't request a password reset, you can safely ignore this email — your password won't be changed.<br><br>
+                    Or copy this link into your browser:<br>
+                    <span style="color:#888888;word-break:break-all;">${resetLink}</span>
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 40px;background:#0f0f0f;text-align:center;">
+                  <p style="margin:0;color:#444444;font-size:11px;">© BLAK Tickets. All rights reserved.</p>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
+        `,
+      });
+    }
+
+    // Always return success regardless of whether email was found
+    res.json({ success: true, message: "If that email is registered, a reset link has been sent." });
+  } catch (err) {
+    console.error("Forgot password failed:", err);
+    res.status(500).json({ error: "Could not send reset email. Please try again later." });
+  }
+});
+
+// ── Forgot Password: Verify token then update password ─────────────────────
+app.post("/auth/reset-password-by-token", async (req, res) => {
+  try {
+    const token = String((req.body && req.body.token) || "").trim();
+    const newPassword = String((req.body && req.body.password) || "");
+
+    if (!token) return res.status(400).json({ error: "Reset token is required" });
+    if (newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+
+    let payload;
+    try {
+      payload = verifyJwt(token);
+    } catch (err) {
+      return res.status(400).json({ error: "Reset link is invalid or has expired. Please request a new one." });
+    }
+
+    if (payload.scope !== "password-reset" || !payload.email) {
+      return res.status(400).json({ error: "Invalid reset link" });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    const result = await pool.query(
+      "UPDATE users SET password=$1 WHERE LOWER(email)=LOWER($2) AND COALESCE(status,'Active') NOT IN ('Suspended','Blocked','Inactive') RETURNING id",
+      [hash, payload.email],
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Account not found or is inactive" });
+    }
+
+    res.json({ success: true, message: "Password updated successfully. You can now sign in with your new password." });
+  } catch (err) {
+    console.error("Token password reset failed:", err);
+    res.status(500).json({ error: "Could not reset password" });
+  }
+});
+
+// ── Legacy reset (by email/loginId directly, no token) ─────────────────────
 app.post("/auth/reset-password", async (req, res) => {
   try {
     const identifier = String(
-      (req.body && (req.body.email || req.body.identifier || req.body.loginId)) ||
-        "",
-    )
-      .trim()
-      .toLowerCase();
+      (req.body && (req.body.email || req.body.identifier || req.body.loginId)) || "",
+    ).trim().toLowerCase();
     const newPassword = String((req.body && req.body.password) || "");
     if (!identifier || newPassword.length < 6) {
       return res.status(400).json({
@@ -4291,7 +4173,6 @@ app.get("/session", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3003;
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
