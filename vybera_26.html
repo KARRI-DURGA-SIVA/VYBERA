@@ -411,9 +411,16 @@ try{
     localStorage.getItem('VYBERA_ADMIN_TOKEN')||
     localStorage.getItem('VYBERA_STAFF_TOKEN')||
     localStorage.getItem('VYBERA_CREATOR_TOKEN')||
-    (localStorage.getItem('VYBERA_BUYER_TOKEN')&&sessionStorage.getItem('VYBERA_GUEST_MODE')!=='1')
+    (localStorage.getItem('VYBERA_BUYER_TOKEN') &&
+     sessionStorage.getItem('VYBERA_GUEST_MODE') !== '1')
   ){
     document.body.classList.add('session-restoring');
+
+    window.addEventListener('DOMContentLoaded', function () {
+      if(localStorage.getItem('VYBERA_BUYER_TOKEN')){
+        navigateBuyerHome();
+      }
+    });
   }
 }catch(_){}
 </script>
@@ -2260,7 +2267,7 @@ function quickLogin(){
   sessionStorage.removeItem('VYBERA_GOOGLE_PENDING');
   sessionStorage.removeItem('VYBERA_AFTER_AUTH');
   sessionStorage.setItem('VYBERA_GUEST_MODE','1');
-  localStorage.removeItem('VYBERA_BUYER_TOKEN');
+  // localStorage.removeItem('VYBERA_BUYER_TOKEN');
   localStorage.removeItem('VYBERA_CREATOR_TOKEN');
   localStorage.removeItem('VYBERA_ADMIN_TOKEN');
   localStorage.removeItem('VYBERA_STAFF_TOKEN');
