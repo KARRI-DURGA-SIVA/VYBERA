@@ -446,7 +446,7 @@ window.addEventListener('DOMContentLoaded', function(){
 window.VYBERA_API_BASE='https://vybera.onrender.com';
 window.VYBERA_GOOGLE_USE_REDIRECT=false;
 </script>
-<script type="module" src="firebaseconfig.js?v=apk-auth-api-1"></script>
+<script type="module" src="firebaseconfig.js?v=apk-auth-api-2"></script>
 
 
 <!-- SPLASH -->
@@ -6358,8 +6358,18 @@ populateNotifs();
 restoreUserLocation();
 refreshBuyerHome();
 if(new URLSearchParams(location.search).get('google')==='1' && !isBlockedGoogleWebView()){
-  setTimeout(function(){
-    signInWithGoogle();
+  setTimeout(async function(){
+    if(window.vyberaFirebaseCompleteGoogleReturn){
+      return window.vyberaFirebaseCompleteGoogleReturn();
+    }
+    showToast('Google is loading...');
+    for(var i=0;i<30;i++){
+      await new Promise(function(resolve){setTimeout(resolve,150);});
+      if(window.vyberaFirebaseCompleteGoogleReturn){
+        return window.vyberaFirebaseCompleteGoogleReturn();
+      }
+    }
+    showToast('Google sign-in is not ready. Please try again.');
   },400);
 }
 if(safeSessionGet('VYBERA_GOOGLE_PENDING')==='1'){
