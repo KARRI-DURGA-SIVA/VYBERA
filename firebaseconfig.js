@@ -29,6 +29,11 @@ googleProvider.setCustomParameters({
   prompt: "select_account",
 });
 
+function isCordovaWebView() {
+  const ua = navigator.userAgent || "";
+  return !!window.cordova || window.location.protocol === "file:" || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
+}
+
 function normalizeLocalAuthOrigin() {
   const isFilePreview = window.location.protocol === "file:";
   const isLoopbackIp = ["127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
@@ -89,20 +94,22 @@ async function finishGoogleUser(user) {
   setTimeout(forceBuyerHome, 80);
 }
 
-getRedirectResult(auth)
-  .then((result) => {
-    if (result && result.user) return finishGoogleUser(result.user);
-  })
-  .catch((err) => {
-    console.error("Google redirect result failed:", err);
-  });
+if (!isCordovaWebView()) {
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result && result.user) return finishGoogleUser(result.user);
+    })
+    .catch((err) => {
+      console.error("Google redirect result failed:", err);
+    });
+}
 
 window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() {
   try {
     if (normalizeLocalAuthOrigin()) return;
     markGooglePending();
     const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-    if (window.VYBERA_GOOGLE_USE_REDIRECT === true && !isLocalHost) {
+    if (window.VYBERA_GOOGLE_USE_REDIRECT === true && !isLocalHost && !isCordovaWebView()) {
       return signInWithRedirect(auth, googleProvider);
     }
     const result = await signInWithPopup(auth, googleProvider);
@@ -120,8 +127,10 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
       err.code === "auth/operation-not-supported-in-this-environment" ||
       err.code === "auth/internal-error"
     ) {
-      markGooglePending();
-      return signInWithRedirect(auth, googleProvider);
+      if (!isCordovaWebView()) {
+        markGooglePending();
+        return signInWithRedirect(auth, googleProvider);
+      }
     }
 
     if (err.code === "auth/unauthorized-domain") {
