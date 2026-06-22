@@ -106,6 +106,13 @@ if (!isCordovaWebView()) {
 
 window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() {
   try {
+    if (isCordovaWebView()) {
+      if (typeof window.localGoogleSignInFallback === "function") {
+        return window.localGoogleSignInFallback();
+      }
+      alert("Google login is loading. Please try again in a moment.");
+      return;
+    }
     if (normalizeLocalAuthOrigin()) return;
     markGooglePending();
     const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -143,12 +150,16 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
       return;
     }
 
-    alert(err.message || "Google sign-in failed. Please try again.");
+    if (!isCordovaWebView()) {
+      alert(err.message || "Google sign-in failed. Please try again.");
+    }
     clearGooglePending();
   }
 };
 
-window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
+if (!isCordovaWebView()) {
+  window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
+}
 
 window.vyberaFirebaseSignOut = function() {
   return signOut(auth).catch((err) => {

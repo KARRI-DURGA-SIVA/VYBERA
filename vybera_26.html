@@ -6243,6 +6243,7 @@ async function signInWithGoogle(){
   showToast('Google redirect unavailable. Using local database sign-in.');
   return localGoogleSignInFallback();
 }
+window.signInWithGoogle=signInWithGoogle;
 
 function apiUrl(path){
   var cleanPath=path.charAt(0)==='/'?path:'/'+path;
