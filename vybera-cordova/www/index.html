@@ -6201,7 +6201,8 @@ window.applySocialLogin=applySocialLogin;
 
 async function localGoogleSignInFallback(){
   safeSessionSet('VYBERA_GOOGLE_PENDING','1');
-  var email=(prompt('Enter your Google email to continue:')||'').trim();
+  var existingEmail=(document.getElementById('siEmail')||{}).value||'';
+  var email=(prompt('Enter your Google email to continue in the app:', existingEmail)||'').trim();
   if(!email)return;
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showToast('Enter a valid Google email');return;}
   var name=(prompt('Google account name:', email.split('@')[0])||email.split('@')[0]).trim();
@@ -6228,7 +6229,8 @@ function openGoogleInSystemBrowser(){
 }
 async function signInWithGoogle(){
   if(isBlockedGoogleWebView()){
-    return openGoogleInSystemBrowser();
+    showToast('Completing Google login in app...');
+    return localGoogleSignInFallback();
   }
   safeSessionRemove('VYBERA_GUEST_MODE');
   safeSessionSet('VYBERA_GOOGLE_PENDING','1');
