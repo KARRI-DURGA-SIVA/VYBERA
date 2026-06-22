@@ -6198,13 +6198,14 @@ async function applySocialLogin(user,options){
 window.applySocialLogin=applySocialLogin;
 
 async function localGoogleSignInFallback(){
+  safeSessionRemove('VYBERA_GUEST_MODE');
   safeSessionSet('VYBERA_GOOGLE_PENDING','1');
   var existingEmail=(document.getElementById('siEmail')||{}).value||'';
-  var email=(prompt('Enter your Google email to continue in the app:', existingEmail)||'').trim();
+  var email=(prompt('Enter your Google email to continue:', existingEmail)||'').trim();
   if(!email)return;
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showToast('Enter a valid Google email');return;}
-  var name=(prompt('Google account name:', email.split('@')[0])||email.split('@')[0]).trim();
-  await applySocialLogin({name:name,email:email,photoURL:''});
+  var name=email.split('@')[0].replace(/[._-]+/g,' ').replace(/\b\w/g,function(ch){return ch.toUpperCase();}).trim()||'Google User';
+  await applySocialLogin({name:name,email:email,photoURL:''},{force:true});
 }
 window.localGoogleSignInFallback=localGoogleSignInFallback;
 function safeSessionGet(key){try{return sessionStorage.getItem(key);}catch(_){return null;}}
