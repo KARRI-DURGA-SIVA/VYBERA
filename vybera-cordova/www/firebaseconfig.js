@@ -107,8 +107,8 @@ if (!isCordovaWebView()) {
 window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() {
   try {
     if (isCordovaWebView()) {
-      if (typeof window.localGoogleSignInFallback === "function") {
-        return window.localGoogleSignInFallback();
+      if (typeof window.openGoogleInSystemBrowser === "function") {
+        return window.openGoogleInSystemBrowser();
       }
       alert("Google login is loading. Please try again in a moment.");
       return;
@@ -116,7 +116,8 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
     if (normalizeLocalAuthOrigin()) return;
     markGooglePending();
     const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-    if (window.VYBERA_GOOGLE_USE_REDIRECT === true && !isLocalHost && !isCordovaWebView()) {
+    const isAppReturnFlow = new URLSearchParams(window.location.search).get("google") === "1";
+    if ((window.VYBERA_GOOGLE_USE_REDIRECT === true || isAppReturnFlow) && !isLocalHost && !isCordovaWebView()) {
       return signInWithRedirect(auth, googleProvider);
     }
     const result = await signInWithPopup(auth, googleProvider);

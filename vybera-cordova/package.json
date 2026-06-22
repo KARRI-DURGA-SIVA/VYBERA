@@ -14,6 +14,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "cordova-android": "^15.0.0",
+    "cordova-plugin-customurlscheme": "^5.0.2",
     "cordova-plugin-inappbrowser": "^6.0.1"
   },
   "cordova": {
@@ -21,7 +22,13 @@
       "android"
     ],
     "plugins": {
-      "cordova-plugin-inappbrowser": {}
+      "cordova-plugin-inappbrowser": {},
+      "cordova-plugin-customurlscheme": {
+        "URL_SCHEME": "vybera",
+        "ANDROID_SCHEME": "vybera",
+        "ANDROID_HOST": "google-login",
+        "ANDROID_PATHPREFIX": "/"
+      }
     }
   }
 }

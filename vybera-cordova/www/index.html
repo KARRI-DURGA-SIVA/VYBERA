@@ -6185,6 +6185,16 @@ async function applySocialLogin(user,options){
     safeSessionRemove('VYBERA_GOOGLE_PENDING');
     showToast('Signed in with Google');
     var url=new URL(window.location.href);
+    var appReturnUrl=url.searchParams.get('returnTo');
+    if(appReturnUrl && !isBlockedGoogleWebView()){
+      var callbackUrl=new URL(appReturnUrl);
+      callbackUrl.searchParams.set('token',data.token||'');
+      callbackUrl.searchParams.set('name',(data.user&&data.user.username)||name);
+      callbackUrl.searchParams.set('email',(data.user&&data.user.email)||email);
+      callbackUrl.searchParams.set('photoURL',(data.user&&data.user.profileImage)||user.photoURL||'');
+      window.location.href=callbackUrl.toString();
+      return;
+    }
     if(url.searchParams.has('google')){
       url.searchParams.delete('google');
       window.history.replaceState(null,'',url.pathname+url.search+url.hash);
@@ -6213,14 +6223,69 @@ window.localGoogleSignInFallback=localGoogleSignInFallback;
 function safeSessionGet(key){try{return sessionStorage.getItem(key);}catch(_){return null;}}
 function safeSessionSet(key,value){try{sessionStorage.setItem(key,value);}catch(_){}}
 function safeSessionRemove(key){try{sessionStorage.removeItem(key);}catch(_){}}
+function decodeLaunchUrl(rawUrl){
+  var value=String(rawUrl||'');
+  try{
+    if(value.indexOf('vybera%3A')===0 || value.indexOf('vybera%3a')===0){
+      return decodeURIComponent(value);
+    }
+  }catch(_){}
+  return value;
+}
+async function applyGoogleAppCallback(rawUrl){
+  var launchUrl=decodeLaunchUrl(rawUrl);
+  var parsed;
+  try{
+    parsed=new URL(launchUrl);
+  }catch(err){
+    console.error('Invalid Google callback URL:',err);
+    return;
+  }
+  if(parsed.protocol!=='vybera:' || parsed.hostname!=='google-login')return;
+  var params=parsed.searchParams;
+  var error=params.get('error');
+  if(error){
+    safeSessionRemove('VYBERA_GOOGLE_PENDING');
+    showToast(error);
+    return;
+  }
+  var token=params.get('token')||'';
+  var email=params.get('email')||'';
+  if(!token || !email){
+    safeSessionRemove('VYBERA_GOOGLE_PENDING');
+    showToast('Google login did not return account details');
+    return;
+  }
+  var name=params.get('name')||'Google User';
+  var photoURL=params.get('photoURL')||'';
+  localStorage.setItem('VYBERA_BUYER_TOKEN',token);
+  applyBuyerProfile({username:name,email:email,profileImage:photoURL});
+  try{
+    await loadBuyerBookingHistory();
+    await loadProfileCreatorEvents();
+    renderProfileCreatorEvents();
+  }catch(err){
+    console.error('Post Google login refresh failed:',err);
+  }
+  safeSessionRemove('VYBERA_GUEST_MODE');
+  safeSessionRemove('VYBERA_GOOGLE_PENDING');
+  showToast('Signed in with Google');
+  if(continueAfterBuyerAuth())return;
+  navigateBuyerHome();
+}
+window.handleOpenURL=function(url){
+  setTimeout(function(){
+    applyGoogleAppCallback(url);
+  },0);
+};
 function isBlockedGoogleWebView(){
   var ua=navigator.userAgent||'';
   return !!window.cordova || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
 }
 function openGoogleInSystemBrowser(){
-  safeSessionRemove('VYBERA_GOOGLE_PENDING');
-  var url='https://vybera.onrender.com?google=1';
-  alert('Google sign-in cannot complete inside the app WebView. VYBERA will open your phone browser for Google sign-in. For in-app login, use email and password.');
+  safeSessionSet('VYBERA_GOOGLE_PENDING','1');
+  var url='https://vybera.onrender.com?google=1&returnTo='+encodeURIComponent('vybera://google-login/');
+  showToast('Opening Google sign-in...');
   if(window.cordova && window.cordova.InAppBrowser){
     window.cordova.InAppBrowser.open(url,'_system','location=yes');
     return true;
@@ -6230,8 +6295,7 @@ function openGoogleInSystemBrowser(){
 }
 async function signInWithGoogle(){
   if(isBlockedGoogleWebView()){
-    showToast('Completing Google login in app...');
-    return localGoogleSignInFallback();
+    return openGoogleInSystemBrowser();
   }
   safeSessionRemove('VYBERA_GUEST_MODE');
   safeSessionSet('VYBERA_GOOGLE_PENDING','1');
@@ -6243,8 +6307,7 @@ async function signInWithGoogle(){
     await new Promise(function(resolve){setTimeout(resolve,150);});
     if(window.vyberaFirebaseGoogleSignIn)return window.vyberaFirebaseGoogleSignIn();
   }
-  showToast('Google redirect unavailable. Using local database sign-in.');
-  return localGoogleSignInFallback();
+  showToast('Google sign-in is not ready. Please try again.');
 }
 window.signInWithGoogle=signInWithGoogle;
 
