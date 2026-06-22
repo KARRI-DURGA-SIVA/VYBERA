@@ -2268,9 +2268,9 @@ function quickLogin(){
   sessionStorage.removeItem('VYBERA_AFTER_AUTH');
   sessionStorage.setItem('VYBERA_GUEST_MODE','1');
   // localStorage.removeItem('VYBERA_BUYER_TOKEN');
-  localStorage.removeItem('VYBERA_CREATOR_TOKEN');
-  localStorage.removeItem('VYBERA_ADMIN_TOKEN');
-  localStorage.removeItem('VYBERA_STAFF_TOKEN');
+  // localStorage.removeItem('VYBERA_CREATOR_TOKEN');
+  // localStorage.removeItem('VYBERA_ADMIN_TOKEN');
+  // localStorage.removeItem('VYBERA_STAFF_TOKEN');
   document.body.classList.remove('creator-mode');
   document.body.classList.add('guest-mode');
   STORE.currentUser=null;
@@ -6029,7 +6029,7 @@ async function doLogin(){
   }
   // 6. Guest-style fallback when no credentials were entered.
   setButtonBusy('loginBtn',false,null,'Sign In');
-  quickLogin();
+  return;
 }
 
 function openForgotPasswordModal(){
