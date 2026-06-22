@@ -237,6 +237,25 @@ const publicCreator = (creator) => ({
   joinedAt: creator.created_at,
 });
 
+const creatorKycDocumentUrl = (document) => {
+  if (!document) return "";
+  if (document.storage === "r2") return `/r2/media/${encodeR2Key(document.object_key)}`;
+  if (document.storage === "local") {
+    return `/uploads/${String(document.object_key || "").replace(/^local\//, "")}`;
+  }
+  return "";
+};
+
+const publicCreatorKycDocument = (document) => ({
+  id: document.id,
+  documentType: document.document_type,
+  fileName: document.file_name,
+  contentType: document.content_type,
+  storage: document.storage,
+  url: creatorKycDocumentUrl(document),
+  createdAt: document.created_at,
+});
+
 const publicCreatorEvent = (event) => ({
   id: event.id,
   creatorId: event.creator_id,
@@ -1246,7 +1265,7 @@ app.post("/creator/applications", async (req, res) => {
         .json({ error: "A creator account with this email already exists" });
     }
 
-    const allowedTypes = new Set(["aadhaar", "gst", "bank"]);
+    const allowedTypes = new Set(["pan", "aadhaar", "gst", "bank"]);
     const uploaded = [];
     for (const file of files) {
       const documentType = String(file.documentType || "")
@@ -1301,7 +1320,7 @@ app.post("/creator/applications", async (req, res) => {
     await client.query("COMMIT");
     res.status(201).json({
       message:
-        "Creator application and KYC submitted successfully. Sign in with your creator email and password.",
+        "Creator application and KYC submitted successfully. You can sign in after super admin verification.",
       creator: publicCreator(creator),
     });
   } catch (err) {
@@ -1394,6 +1413,17 @@ app.post("/creator/login", async (req, res) => {
           reason: creator ? "password_mismatch" : "creator_not_found",
           loginReceived: loginIdentifier,
         });
+    }
+    if (creator.kyc_status !== "Approved") {
+      const message =
+        creator.kyc_status === "Rejected"
+          ? "Your creator application was rejected. Please contact support."
+          : "Your creator account is pending super admin verification.";
+      return res.status(403).json({
+        error: message,
+        reason: "creator_not_verified",
+        kycStatus: creator.kyc_status,
+      });
     }
     res.json({
       message: "Creator login successful",
@@ -2785,12 +2815,23 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
       `),
         pool.query(`
         SELECT c.id, c.name, c.email, c.phone, c.category, c.kyc_status, c.created_at,
-          COUNT(DISTINCT e.id)::INTEGER AS events,
-          COALESCE(SUM(b.total),0)::NUMERIC AS revenue
+          (
+            SELECT COUNT(*)::INTEGER
+            FROM creator_events e
+            WHERE e.creator_id=c.id
+          ) AS events,
+          (
+            SELECT COALESCE(SUM(b.total),0)::NUMERIC
+            FROM creator_events e
+            LEFT JOIN bookings b ON b.event_id=e.id
+            WHERE e.creator_id=c.id
+          ) AS revenue,
+          (
+            SELECT COALESCE(json_agg(d ORDER BY d.created_at DESC), '[]')
+            FROM creator_kyc_documents d
+            WHERE d.creator_id=c.id
+          ) AS documents
         FROM creator_accounts c
-        LEFT JOIN creator_events e ON e.creator_id=c.id
-        LEFT JOIN bookings b ON b.event_id=e.id
-        GROUP BY c.id
         ORDER BY c.created_at DESC
       `),
         pool.query(`
@@ -2834,6 +2875,7 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
         events: Number(creator.events || 0),
         revenue: Number(creator.revenue || 0),
         fee: 8,
+        documents: (creator.documents || []).map(publicCreatorKycDocument),
         createdAt: creator.created_at,
       })),
       events: events.rows.map(publicCreatorEvent),
@@ -2946,7 +2988,7 @@ app.patch("/admin/users/:userId/status", requireAdmin, async (req, res) => {
   }
 });
 
-app.patch("/admin/creators/:creatorId/status", requireAdmin, async (req, res) => {
+app.patch("/admin/creators/:creatorId/status", requireAdmin, requireSuperAdmin, async (req, res) => {
   try {
     const rawCreatorId = String(req.params.creatorId || "").replace(/^CRT-/i, "");
     const creatorId = Number(rawCreatorId);
@@ -2974,7 +3016,7 @@ app.patch("/admin/creators/:creatorId/status", requireAdmin, async (req, res) =>
   }
 });
 
-app.patch("/admin/creators/status-by-email", requireAdmin, async (req, res) => {
+app.patch("/admin/creators/status-by-email", requireAdmin, requireSuperAdmin, async (req, res) => {
   try {
     const email = String((req.body || {}).email || "").trim().toLowerCase();
     const status = String((req.body || {}).status || "").trim();

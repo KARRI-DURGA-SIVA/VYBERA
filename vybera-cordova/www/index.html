@@ -1840,6 +1840,12 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
   <div style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:10px;font-weight:600;">KYC Documents</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
     <div style="padding:14px;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;text-align:center;cursor:pointer;" onclick="this.querySelector('input').click()">
+      <input type="file" accept=".pdf,.jpg,.png" style="display:none;" onchange="applyDocSelected(this,'pan')"/>
+      <div style="font-size:20px;margin-bottom:6px;">ID</div>
+      <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">PAN Card</div>
+      <div id="applyPANLabel" style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px;">Tap to upload</div>
+    </div>
+    <div style="padding:14px;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;text-align:center;cursor:pointer;" onclick="this.querySelector('input').click()">
       <input type="file" accept=".pdf,.jpg,.png" style="display:none;" onchange="applyDocSelected(this,'aadhaar')"/>
       <div style="font-size:20px;margin-bottom:6px;">🪪</div>
       <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">Aadhaar / ID</div>
@@ -6955,6 +6961,12 @@ function admRenderBuyers(){
 
 var admCreatorsList = [];
 
+function admEscapeHtml(value){
+  return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
 function admRenderCreators(){
   var tbody = document.getElementById('creatorsBody');
   if(!tbody) return;
@@ -6963,18 +6975,19 @@ function admRenderCreators(){
     var pending = c.status==='Pending';
     var bc = verified?'green':pending?'yellow':'red';
     var statusLabel = c.status==='Approved'?'Verified':c.status;
-    return '<tr><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
-      +'<td><div style="font-weight:600;color:var(--adm-text);">'+c.name+'</div><div style="font-size:10px;color:var(--adm-text2);">'+c.email+'</div></td>'
-      +'<td><span class="adm-badge blue">'+(c.category||'—')+'</span></td>'
+    var docsCount = (c.documents||[]).length;
+    return '<tr onclick="admOpenCreatorReview(\''+c.id+'\')" style="cursor:pointer;"><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
+      +'<td><div style="font-weight:600;color:var(--adm-text);">'+admEscapeHtml(c.name)+'</div><div style="font-size:10px;color:var(--adm-text2);">'+admEscapeHtml(c.email)+'</div><div style="font-size:10px;color:#00D4D4;margin-top:2px;">Review '+docsCount+' document'+(docsCount===1?'':'s')+'</div></td>'
+      +'<td><span class="adm-badge blue">'+admEscapeHtml(c.category||'—')+'</span></td>'
       +'<td>'+c.events+'</td>'
       +'<td style="font-size:11px;">₹'+c.revenue.toLocaleString('en-IN')+'</td>'
       +'<td><span style="font-size:12px;font-weight:600;color:var(--adm-text);">'+c.fee+'%</span></td>'
       +'<td><span class="adm-badge '+bc+'">'+statusLabel+'</span></td>'
       +'<td><div style="display:flex;gap:4px;">'
       +(pending
-        ? '<button onclick="admVerifyCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Verify</button>'
-        : '<button onclick="admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
-      +'<button onclick="admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>'
+        ? '<button onclick="event.stopPropagation();admOpenCreatorReview(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Verify</button>'
+        : '<button onclick="event.stopPropagation();admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
+      +'<button onclick="event.stopPropagation();admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>'
       +'</div></td></tr>';
   }).join('');
 }
@@ -7006,6 +7019,41 @@ function admReinstateUser(id){
   admSetBuyerStatus(id,'Active');
 }
 function admNotifyUser(name){ admShowToast('Notification sent to: '+name); STORE.addAdminLog('Notify User',name); }
+function admOpenCreatorReview(id){
+  var c = admCreatorsList.find(function(x){return x.id===id;});
+  if(!c) return;
+  var existing=document.getElementById('creatorReviewModal');
+  if(existing) existing.remove();
+  var docs=c.documents||[];
+  var statusLabel=c.status==='Approved'?'Verified':c.status;
+  var docHtml=docs.length?docs.map(function(doc){
+    var typeMap={pan:'PAN Card',aadhaar:'Aadhaar / ID',gst:'GST Certificate',bank:'Bank Account'};
+    var rawType=String(doc.documentType||'document').toLowerCase();
+    var type=typeMap[rawType]||String(doc.documentType||'document').replace(/^\w/,function(ch){return ch.toUpperCase();});
+    var url=doc.url||'';
+    return '<div style="padding:12px;border:1px solid var(--adm-border);border-radius:10px;background:var(--adm-input-bg);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">'
+      +'<div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--adm-text);">'+admEscapeHtml(type)+'</div><div style="font-size:11px;color:var(--adm-text2);word-break:break-word;">'+admEscapeHtml(doc.fileName||'Uploaded document')+'</div></div>'
+      +(url?'<a class="adm-btn adm-btn-sm adm-btn-ghost" href="'+admEscapeHtml(url)+'" target="_blank" rel="noopener">Open</a>':'<span style="font-size:10px;color:var(--adm-text2);">No link</span>')
+      +'</div>';
+  }).join(''):'<div style="padding:14px;border:1px solid var(--adm-border);border-radius:10px;color:var(--adm-text2);font-size:12px;">No KYC documents found for this creator.</div>';
+  var modal=document.createElement('div');
+  modal.id='creatorReviewModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;';
+  modal.innerHTML='<div style="width:100%;max-width:520px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:14px;padding:18px;box-shadow:0 18px 70px rgba(0,0,0,.65);font-family:\'DM Sans\',sans-serif;max-height:86vh;overflow-y:auto;">'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;"><div><div style="font-size:16px;font-weight:800;color:var(--adm-text);">Creator Review</div><div style="font-size:12px;color:var(--adm-text2);">'+admEscapeHtml(c.name)+' · '+admEscapeHtml(c.email)+'</div></div><button data-cancel="1" class="adm-btn adm-btn-sm adm-btn-ghost">Close</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;"><div style="padding:10px;border:1px solid var(--adm-border);border-radius:10px;"><div style="font-size:10px;color:var(--adm-text2);">Category</div><div style="font-size:12px;color:var(--adm-text);font-weight:700;">'+admEscapeHtml(c.category||'-')+'</div></div><div style="padding:10px;border:1px solid var(--adm-border);border-radius:10px;"><div style="font-size:10px;color:var(--adm-text2);">Status</div><div style="font-size:12px;color:var(--adm-text);font-weight:700;">'+admEscapeHtml(statusLabel)+'</div></div></div>'
+    +'<div style="padding:10px;border:1px solid rgba(0,212,212,0.24);border-radius:10px;background:rgba(0,212,212,0.06);font-size:11px;color:var(--adm-text2);margin-bottom:12px;">Open each PAN, GST, and bank document. Verify the details are valid before approving this creator login.</div>'
+    +'<div style="font-size:12px;font-weight:800;color:var(--adm-text);margin-bottom:8px;">Submitted Documents</div>'
+    +docHtml
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
+    +(c.status==='Pending'?'<button data-verify="1" class="adm-btn adm-btn-teal">Verify Creator</button>':'')
+    +'</div></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click',function(e){
+    if(e.target===modal||e.target.closest('[data-cancel]')) modal.remove();
+    if(e.target.closest('[data-verify]')) admVerifyCreator(id);
+  });
+}
 async function admVerifyCreator(id){
   var c = admCreatorsList.find(function(x){return x.id===id;});
   if(!c) return;
@@ -7020,6 +7068,7 @@ async function admVerifyCreator(id){
     if(!resp.ok) throw new Error(data.error||'Could not verify creator');
     c.status='Approved';
     admRenderCreators();
+    var modal=document.getElementById('creatorReviewModal'); if(modal) modal.remove();
     admShowToast('✅ Creator verified: '+c.name);
     STORE.addAdminLog('Verify Creator',c.name);
   }catch(err){
@@ -7027,8 +7076,8 @@ async function admVerifyCreator(id){
   }
 }
 function admVerifyAllCreators(){
-  admCreatorsList.forEach(function(c){ if(c.status==='Pending') c.status='Verified'; });
-  admRenderCreators(); admShowToast('✅ All creators verified'); STORE.addAdminLog('Bulk Verify','All pending creators verified');
+  Promise.all(admCreatorsList.filter(function(c){return c.status==='Pending';}).map(function(c){return admVerifyCreator(c.id);}))
+    .then(function(){admShowToast('✅ All pending creators verified'); STORE.addAdminLog('Bulk Verify','All pending creators verified');});
 }
 function admAdjustFee(id){
   var c = admCreatorsList.find(function(x){return x.id===id;});
@@ -9377,14 +9426,14 @@ async function submitCreatorApplication(){
     VyberaEventBus.emit('creator_application', {name:name, email:email, category:cat});
     STORE.addAdminLog('Creator Application', name + ' — ' + cat);
 
-    _applyDocs = {aadhaar:null, gst:null, bank:null};
+    _applyDocs = {pan:null, aadhaar:null, gst:null, bank:null};
     var m = document.getElementById('creatorApplyModal');
     if(m) m.style.display = 'none';
     ['applyName','applyEmail','applyPhone','applyAbout','applyPassword'].forEach(function(id){
       var e = document.getElementById(id); if(e) e.value='';
     });
     document.querySelectorAll('#creatorApplyModal input[type="file"]').forEach(function(input){ input.value=''; });
-    [['applyAadhaarLabel','Tap to upload'],['applyGSTLabel','Tap to upload'],['applyBankLabel','Tap to upload']].forEach(function(item){
+    [['applyPANLabel','Tap to upload'],['applyAadhaarLabel','Tap to upload'],['applyGSTLabel','Tap to upload'],['applyBankLabel','Tap to upload']].forEach(function(item){
       var label=document.getElementById(item[0]); if(label){label.textContent=item[1];label.style.color='rgba(255,255,255,0.35)';}
     });
     var loginEmail=document.getElementById('creatorLoginEmail'); if(loginEmail) loginEmail.value=email;
@@ -9837,14 +9886,14 @@ function addRecentScan(b, num){
 
 
 // ── KYC doc upload handler ──
-var _applyDocs = {aadhaar:null, gst:null, bank:null};
+var _applyDocs = {pan:null, aadhaar:null, gst:null, bank:null};
 
 function applyDocSelected(input, type){
   var file = input.files[0];
   if(!file) return;
   if(file.size > 8 * 1024 * 1024){ showToast('Each KYC document must be 8 MB or smaller'); input.value=''; return; }
   _applyDocs[type] = file;
-  var labelId = {aadhaar:'applyAadhaarLabel', gst:'applyGSTLabel', bank:'applyBankLabel'}[type];
+  var labelId = {pan:'applyPANLabel', aadhaar:'applyAadhaarLabel', gst:'applyGSTLabel', bank:'applyBankLabel'}[type];
   var el = document.getElementById(labelId);
   if(el){ el.textContent = '✅ ' + file.name.substring(0,20); el.style.color='#4ade80'; }
 }
