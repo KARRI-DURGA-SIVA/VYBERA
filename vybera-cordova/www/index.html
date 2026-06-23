@@ -6313,7 +6313,11 @@ function openGoogleInSystemBrowser(){
 }
 async function signInWithGoogle(){
   if(isBlockedGoogleWebView()){
-    showToast('Completing Google login in app...');
+    if(typeof window.openGoogleInSystemBrowser==='function'){
+      showToast('Opening secure Google sign-in...');
+      return window.openGoogleInSystemBrowser();
+    }
+    showToast('Google sign-in needs email fallback in this browser');
     return localGoogleSignInFallback();
   }
   safeSessionRemove('VYBERA_GUEST_MODE');

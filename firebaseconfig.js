@@ -7,6 +7,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  onAuthStateChanged,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
@@ -49,6 +50,7 @@ function normalizeLocalAuthOrigin() {
 
 window.vyberaFirebaseGoogleReady = true;
 let googleSessionApplied = false;
+let googleRedirectResultPromise = Promise.resolve(false);
 
 function markGooglePending() {
   try { window.sessionStorage.setItem("VYBERA_GOOGLE_PENDING", "1"); } catch (_) {}
@@ -69,6 +71,18 @@ function forceBuyerHome() {
   } else {
     window.location.hash = "page-home";
   }
+}
+
+function waitForInitialAuthUser() {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user || null);
+    }, () => {
+      unsubscribe();
+      resolve(null);
+    });
+  });
 }
 
 async function finishGoogleUser(user) {
@@ -95,20 +109,41 @@ async function finishGoogleUser(user) {
 }
 
 if (!isCordovaWebView()) {
-  getRedirectResult(auth)
+  googleRedirectResultPromise = getRedirectResult(auth)
     .then((result) => {
-      if (result && result.user) return finishGoogleUser(result.user);
+      if (result && result.user) {
+        return finishGoogleUser(result.user).then(() => true);
+      }
+      return false;
     })
     .catch((err) => {
       console.error("Google redirect result failed:", err);
+      return false;
     });
 }
+
+window.vyberaFirebaseCompleteGoogleReturn = async function vyberaFirebaseCompleteGoogleReturn() {
+  if (isCordovaWebView()) return false;
+  if (normalizeLocalAuthOrigin()) return true;
+
+  markGooglePending();
+  const redirectHandled = await googleRedirectResultPromise;
+  if (redirectHandled || googleSessionApplied) return true;
+
+  const existingUser = auth.currentUser || await waitForInitialAuthUser();
+  if (existingUser) {
+    await finishGoogleUser(existingUser);
+    return true;
+  }
+
+  return signInWithRedirect(auth, googleProvider);
+};
 
 window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() {
   try {
     if (isCordovaWebView()) {
-      if (typeof window.localGoogleSignInFallback === "function") {
-        return window.localGoogleSignInFallback();
+      if (typeof window.openGoogleInSystemBrowser === "function") {
+        return window.openGoogleInSystemBrowser();
       }
       alert("Google login is loading. Please try again in a moment.");
       return;
@@ -116,7 +151,11 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
     if (normalizeLocalAuthOrigin()) return;
     markGooglePending();
     const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-    if (window.VYBERA_GOOGLE_USE_REDIRECT === true && !isLocalHost && !isCordovaWebView()) {
+    const isAppReturnFlow = new URLSearchParams(window.location.search).get("google") === "1";
+    if (isAppReturnFlow && !isLocalHost) {
+      return window.vyberaFirebaseCompleteGoogleReturn();
+    }
+    if ((window.VYBERA_GOOGLE_USE_REDIRECT === true || isAppReturnFlow) && !isLocalHost && !isCordovaWebView()) {
       return signInWithRedirect(auth, googleProvider);
     }
     const result = await signInWithPopup(auth, googleProvider);
