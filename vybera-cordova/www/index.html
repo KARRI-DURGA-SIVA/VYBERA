@@ -454,6 +454,50 @@ body.on-creator-login #creatorVerificationMsg{
   border-color:#f5d36a!important;
   color:#7a4b00!important;
 }
+.location-sheet-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:9500;
+  display:none;
+  align-items:flex-end;
+  justify-content:center;
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(8px);
+  padding:16px;
+}
+.location-sheet-backdrop.active{display:flex;}
+.location-sheet{
+  width:100%;
+  max-width:520px;
+  max-height:86vh;
+  overflow:hidden;
+  background:#fff;
+  color:#111;
+  border-radius:20px;
+  box-shadow:0 24px 80px rgba(0,0,0,.28);
+  border:1px solid rgba(0,0,0,.08);
+  display:flex;
+  flex-direction:column;
+}
+.location-sheet-head{padding:18px 18px 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.location-sheet-title{font-size:18px;font-weight:800;color:#111;}
+.location-sheet-sub{font-size:12px;color:#6b7280;margin-top:3px;}
+.location-close{width:36px;height:36px;border-radius:50%;border:1px solid #e5e7eb;background:#fff;color:#111;font-size:20px;line-height:1;cursor:pointer;}
+.location-search-wrap{padding:0 18px 12px;}
+.location-search-box{display:flex;align-items:center;gap:10px;background:#f7f7f8;border:1px solid #e5e7eb;border-radius:14px;padding:0 12px;}
+.location-search-box svg{width:18px;height:18px;stroke:#8B2010;fill:none;stroke-width:2;}
+.location-search-box input{flex:1;border:0;outline:0;background:transparent;color:#111;font:600 14px 'DM Sans',sans-serif;padding:14px 0;}
+.location-search-box input::placeholder{color:#8b8f97;}
+.location-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 18px 12px;}
+.location-action-btn{border:1px solid #e5e7eb;background:#fff;color:#111;border-radius:14px;padding:12px;font:700 12px 'DM Sans',sans-serif;cursor:pointer;text-align:left;}
+.location-action-btn strong{display:block;font-size:13px;margin-bottom:2px;}
+.location-action-btn span{display:block;color:#6b7280;font-weight:500;line-height:1.35;}
+.location-results{overflow:auto;padding:4px 8px 18px;}
+.location-result{display:flex;align-items:center;gap:12px;width:100%;border:0;background:#fff;color:#111;text-align:left;padding:12px 10px;border-radius:14px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.location-result:hover{background:#f7f7f8;}
+.location-pin{width:36px;height:36px;border-radius:12px;background:rgba(139,32,16,.08);color:#8B2010;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px;}
+.location-name{font-size:14px;font-weight:800;color:#111;}
+.location-meta{font-size:12px;color:#6b7280;margin-top:2px;line-height:1.35;}
 img.vylogo { background: transparent; mix-blend-mode: multiply; }
 </style>
 </head>
@@ -689,6 +733,36 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 
   </div><!-- /form area -->
 </div><!-- /max-width wrapper -->
+</div>
+
+<!-- LOCATION PICKER -->
+<div class="location-sheet-backdrop" id="locationSheet" onclick="if(event.target===this)closeLocationSheet();">
+  <div class="location-sheet" role="dialog" aria-modal="true" aria-labelledby="locationSheetTitle">
+    <div class="location-sheet-head">
+      <div>
+        <div class="location-sheet-title" id="locationSheetTitle">Choose your location</div>
+        <div class="location-sheet-sub">Search cities, areas and venues across India.</div>
+      </div>
+      <button class="location-close" type="button" onclick="closeLocationSheet()" aria-label="Close location picker">&times;</button>
+    </div>
+    <div class="location-search-wrap">
+      <div class="location-search-box">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="locationSearchInput" type="search" placeholder="Search Bangalore, Mumbai, Hyderabad..." autocomplete="off" oninput="handleLocationSearchInput(this.value)" onkeydown="if(event.key==='Enter')searchUserLocation(this.value,true);"/>
+      </div>
+    </div>
+    <div class="location-actions">
+      <button class="location-action-btn" type="button" onclick="requestCurrentUserLocation(false)">
+        <strong>Use current location</strong>
+        <span>Auto-detect with GPS</span>
+      </button>
+      <button class="location-action-btn" type="button" onclick="clearUserLocationFilter()">
+        <strong>Show all India</strong>
+        <span>Browse every city</span>
+      </button>
+    </div>
+    <div class="location-results" id="locationResults"></div>
+  </div>
 </div>
 
 <!-- HOME -->
@@ -3612,6 +3686,7 @@ async function completePendingUpiPayment(){
   localStorage.removeItem('VYBERA_PENDING_UPI_BOOKING');
   localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
   pageHistory=['page-success'];
+  sessionStorage.setItem('VYBERA_PAYMENT_SUCCESS_ACTIVE','1');
   if(history&&history.replaceState&&CURRENT_BOOKING){
     history.replaceState({vyberaPage:'page-success'},'','?payment=upi&booking='+encodeURIComponent(CURRENT_BOOKING.id)+'#page-success');
   }
@@ -3707,6 +3782,7 @@ showSuccess = async function(paymentMeta, pendingBooking){
     }
   }
   showPage('page-success');
+  if(paymentMeta&&paymentMeta.gateway)sessionStorage.setItem('VYBERA_PAYMENT_SUCCESS_ACTIVE','1');
   confetti();
 };
 
@@ -4111,6 +4187,7 @@ async function completePayUReturn(){
       showPage('page-success');
       confetti();
       pageHistory=['page-success'];
+      sessionStorage.setItem('VYBERA_PAYMENT_SUCCESS_ACTIVE','1');
       if(history&&history.replaceState)history.replaceState({vyberaPage:'page-success'},'','?payment=payu&booking='+encodeURIComponent(result.bookingId)+'#page-success');
       return;
     }catch(err){
@@ -4138,6 +4215,7 @@ async function completePayUReturn(){
   },pending);
   localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
   pageHistory=['page-success'];
+  sessionStorage.setItem('VYBERA_PAYMENT_SUCCESS_ACTIVE','1');
   if(location.search.indexOf('payment=payu')>=0 && history.replaceState){
     history.replaceState({vyberaPage:'page-success'},'','?payment=payu&booking='+encodeURIComponent((CURRENT_BOOKING&&CURRENT_BOOKING.id)||result.bookingId||'')+'#page-success');
   }
@@ -4154,6 +4232,7 @@ async function completeUpiReturnFromUrl(){
     showPage('page-success');
     confetti();
     pageHistory=['page-success'];
+    sessionStorage.setItem('VYBERA_PAYMENT_SUCCESS_ACTIVE','1');
     if(history&&history.replaceState)history.replaceState({vyberaPage:'page-success'},'','?payment=upi&booking='+encodeURIComponent(bookingId)+'#page-success');
   }catch(err){
     console.error('Could not restore UPI booking from return URL:',err);
@@ -4199,6 +4278,27 @@ function setBannerBackground(element,url,placeholder){
 }
 
 var USER_LOCATION = loadStoredMap('VYBERA_USER_LOCATION');
+var LOCATION_SEARCH_TIMER=null;
+var INDIA_LOCATION_SUGGESTIONS=[
+  {city:'Bengaluru',state:'Karnataka',lat:'12.971599',lng:'77.594566',area:'Bangalore',displayName:'Bengaluru, Karnataka, India'},
+  {city:'Hyderabad',state:'Telangana',lat:'17.385044',lng:'78.486671',displayName:'Hyderabad, Telangana, India'},
+  {city:'Mumbai',state:'Maharashtra',lat:'19.076090',lng:'72.877426',displayName:'Mumbai, Maharashtra, India'},
+  {city:'Delhi',state:'Delhi',lat:'28.613939',lng:'77.209023',displayName:'New Delhi, Delhi, India'},
+  {city:'Chennai',state:'Tamil Nadu',lat:'13.082680',lng:'80.270718',displayName:'Chennai, Tamil Nadu, India'},
+  {city:'Pune',state:'Maharashtra',lat:'18.520430',lng:'73.856744',displayName:'Pune, Maharashtra, India'},
+  {city:'Kolkata',state:'West Bengal',lat:'22.572646',lng:'88.363895',displayName:'Kolkata, West Bengal, India'},
+  {city:'Ahmedabad',state:'Gujarat',lat:'23.022505',lng:'72.571362',displayName:'Ahmedabad, Gujarat, India'},
+  {city:'Jaipur',state:'Rajasthan',lat:'26.912434',lng:'75.787271',displayName:'Jaipur, Rajasthan, India'},
+  {city:'Goa',state:'Goa',lat:'15.299326',lng:'74.123996',displayName:'Goa, India'},
+  {city:'Kochi',state:'Kerala',lat:'9.931233',lng:'76.267304',displayName:'Kochi, Kerala, India'},
+  {city:'Bhubaneswar',state:'Odisha',lat:'20.296059',lng:'85.824539',displayName:'Bhubaneswar, Odisha, India'},
+  {city:'Visakhapatnam',state:'Andhra Pradesh',lat:'17.686816',lng:'83.218482',displayName:'Visakhapatnam, Andhra Pradesh, India'},
+  {city:'Bhimavaram',state:'Andhra Pradesh',lat:'16.544893',lng:'81.521241',displayName:'Bhimavaram, Andhra Pradesh, India'},
+  {city:'Vijayawada',state:'Andhra Pradesh',lat:'16.506174',lng:'80.648015',displayName:'Vijayawada, Andhra Pradesh, India'},
+  {city:'Guntur',state:'Andhra Pradesh',lat:'16.306652',lng:'80.436539',displayName:'Guntur, Andhra Pradesh, India'},
+  {city:'Lucknow',state:'Uttar Pradesh',lat:'26.846694',lng:'80.946166',displayName:'Lucknow, Uttar Pradesh, India'},
+  {city:'Chandigarh',state:'Chandigarh',lat:'30.733315',lng:'76.779418',displayName:'Chandigarh, India'}
+];
 
 function getLocationLabel(locationData){
   locationData=locationData||USER_LOCATION||{};
@@ -4213,6 +4313,61 @@ function applyUserLocation(locationData){
   if(cityEl) cityEl.textContent=USER_LOCATION.label;
   refreshBuyerHome();
   refreshExplore();
+}
+
+function closeLocationSheet(){
+  var sheet=document.getElementById('locationSheet');
+  if(sheet)sheet.classList.remove('active');
+}
+
+function openLocationSheet(){
+  var sheet=document.getElementById('locationSheet');
+  if(!sheet){return;}
+  sheet.classList.add('active');
+  renderLocationResults(INDIA_LOCATION_SUGGESTIONS,'Popular in India');
+  setTimeout(function(){
+    var input=document.getElementById('locationSearchInput');
+    if(input){input.value='';input.focus();}
+  },80);
+}
+
+function normaliseLocationResult(result,query){
+  var address=(result&&result.address)||{};
+  return {
+    lat:Number(result.lat).toFixed(6),
+    lng:Number(result.lon||result.lng).toFixed(6),
+    area:address.suburb||address.neighbourhood||address.road||address.city_district||address.state_district||'',
+    city:address.city||address.town||address.village||address.county||address.state||query||result.city||'',
+    state:address.state||result.state||'',
+    country:address.country||'India',
+    displayName:result.display_name||result.displayName||[result.city,result.state,'India'].filter(Boolean).join(', '),
+    searched:true
+  };
+}
+
+function renderLocationResults(results,title){
+  var list=document.getElementById('locationResults');
+  if(!list)return;
+  results=results||[];
+  var html=title?'<div style="font-size:11px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;padding:6px 12px;">'+title+'</div>':'';
+  if(!results.length){
+    list.innerHTML=html+'<div style="padding:18px 12px;color:#6b7280;font-size:13px;">No locations found. Try a nearby city or area.</div>';
+    return;
+  }
+  list.innerHTML=html+results.map(function(item,index){
+    var label=getLocationLabel(item);
+    var meta=item.displayName||[item.area,item.city,item.state,'India'].filter(Boolean).join(', ');
+    return '<button class="location-result" type="button" data-location-index="'+index+'">'
+      +'<span class="location-pin">📍</span><span style="min-width:0;"><span class="location-name">'+escapeHtml(label)+'</span><span class="location-meta">'+escapeHtml(meta)+'</span></span></button>';
+  }).join('');
+  [].slice.call(list.querySelectorAll('[data-location-index]')).forEach(function(btn){
+    btn.onclick=function(){
+      var selected=results[Number(btn.getAttribute('data-location-index'))];
+      applyUserLocation(selected);
+      closeLocationSheet();
+      showToast('Showing events near '+getLocationLabel(selected));
+    };
+  });
 }
 
 async function reverseLookupUserLocation(latitude,longitude){
@@ -4235,43 +4390,53 @@ async function searchUserLocation(query){
   if(!query){showToast('Enter a location to search');return;}
   try{
     showToast('Searching location...');
-    var resp=await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q='+encodeURIComponent(query));
+    var resp=await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&countrycodes=in&q='+encodeURIComponent(query+', India'));
     var results=await resp.json();
     if(!results||!results.length){showToast('Location not found');return;}
-    var result=results[0];
-    var address=result.address||{};
-    var locationData={
-      lat:Number(result.lat).toFixed(6),
-      lng:Number(result.lon).toFixed(6),
-      area:address.suburb||address.neighbourhood||address.road||address.city_district||'',
-      city:address.city||address.town||address.village||address.county||query,
-      state:address.state||'',
-      country:address.country||'',
-      displayName:result.display_name||query,
-      searched:true
-    };
+    var mapped=results.map(function(result){return normaliseLocationResult(result,query);});
+    if(document.getElementById('locationSheet')&&document.getElementById('locationSheet').classList.contains('active')){
+      renderLocationResults(mapped,'Search results');
+      return;
+    }
+    var locationData=mapped[0];
     applyUserLocation(locationData);
     showToast('Showing events near '+getLocationLabel(locationData));
   }catch(err){
     console.error(err);
+    var local=INDIA_LOCATION_SUGGESTIONS.filter(function(item){
+      var haystack=[item.city,item.area,item.state,item.displayName].join(' ').toLowerCase();
+      return haystack.indexOf(query.toLowerCase())>=0;
+    });
+    if(local.length){
+      renderLocationResults(local,'Matching India locations');
+      return;
+    }
     showToast('Location search failed');
   }
 }
 
-function promptUserCity(){
-  var value=prompt('Search city, area, or venue. Type "current" to use your current location.',getLocationLabel(USER_LOCATION)==='Select City'?'':getLocationLabel(USER_LOCATION));
-  if(!value)return;
-  if(value.trim().toLowerCase()==='current'){requestCurrentUserLocation(false);return;}
-  searchUserLocation(value.trim());
+function handleLocationSearchInput(value){
+  value=String(value||'').trim();
+  clearTimeout(LOCATION_SEARCH_TIMER);
+  if(!value){
+    renderLocationResults(INDIA_LOCATION_SUGGESTIONS,'Popular in India');
+    return;
+  }
+  var local=INDIA_LOCATION_SUGGESTIONS.filter(function(item){
+    var haystack=[item.city,item.area,item.state,item.displayName].join(' ').toLowerCase();
+    return haystack.indexOf(value.toLowerCase())>=0;
+  });
+  renderLocationResults(local,'Suggested');
+  LOCATION_SEARCH_TIMER=setTimeout(function(){searchUserLocation(value,true);},450);
 }
 
 function requestUserLocation(){
-  promptUserCity();
+  openLocationSheet();
 }
 
 function requestCurrentUserLocation(silent){
   if(!navigator.geolocation){
-    if(!silent)promptUserCity();
+    if(!silent)openLocationSheet();
     return;
   }
   if(!silent)showToast('Fetching your location...');
@@ -4279,18 +4444,31 @@ function requestCurrentUserLocation(silent){
     try{
       var locationData=await reverseLookupUserLocation(position.coords.latitude,position.coords.longitude);
       applyUserLocation(locationData);
+      closeLocationSheet();
       if(!silent)showToast('Location set to '+getLocationLabel(locationData));
     }catch(err){
       console.error(err);
       applyUserLocation({lat:Number(position.coords.latitude).toFixed(6),lng:Number(position.coords.longitude).toFixed(6),label:'Current Location'});
+      closeLocationSheet();
       if(!silent)showToast('Location enabled');
     }
   },function(){
     if(!silent){
       showToast('Location permission was not enabled');
-      promptUserCity();
+      openLocationSheet();
     }
   },{enableHighAccuracy:true,timeout:9000});
+}
+
+function clearUserLocationFilter(){
+  USER_LOCATION={label:'All India'};
+  saveStoredMap('VYBERA_USER_LOCATION',USER_LOCATION);
+  var cityEl=document.getElementById('userCity');
+  if(cityEl)cityEl.textContent='All India';
+  closeLocationSheet();
+  refreshBuyerHome();
+  refreshExplore();
+  showToast('Showing events across India');
 }
 
 function restoreUserLocation(){
@@ -6526,6 +6704,7 @@ function showToast(msg){
 populateRows();
 populateNotifs();
 restoreUserLocation();
+ensureDefaultUserLocation();
 refreshBuyerHome();
 if(new URLSearchParams(location.search).get('google')==='1' && !isBlockedGoogleWebView()){
   setTimeout(function(){
@@ -6539,7 +6718,11 @@ setTimeout(completePayUReturn, 100);
 setTimeout(completeUpiReturnFromUrl, 120);
 setTimeout(restorePendingUpiPaymentButton, 250);
 setTimeout(loadPublishedEvents, 150);
-setTimeout(restoreSavedSession,180);
+setTimeout(function(){
+  var params=new URLSearchParams(location.search);
+  if(params.get('payment')||params.get('ticket')||sessionStorage.getItem('VYBERA_PAYMENT_SUCCESS_ACTIVE')==='1')return;
+  restoreSavedSession();
+},180);
 setTimeout(enableVyberaLogoNavigation,0);
 setTimeout(function(){
   var sharedTicket=new URLSearchParams(location.search).get('ticket');
