@@ -670,7 +670,7 @@ select option {
   padding-bottom: 110px;
 }
 
-/* ─── HERO SECTION — FIXED BANNER VISIBILITY ─────────────── */
+/* ─── HERO SECTION ─────────────────────────────────────────── */
 .hero {
   position: relative;
   height: 520px;
@@ -694,7 +694,6 @@ select option {
   background-color: #e0e0e0;
 }
 
-/* FIX: was too white/opaque — banner images were invisible */
 .hero-gradient {
   position: absolute;
   inset: 0;
@@ -770,7 +769,7 @@ select option {
   background: var(--red);
 }
 
-/* ─── EVENT CARDS — FIXED BANNER VISIBILITY ──────────────── */
+/* ─── EVENT CARDS ─────────────────────────────────────────── */
 .event-card {
   flex-shrink: 0;
   width: 160px;
@@ -788,7 +787,6 @@ select option {
   box-shadow: 0 0 24px rgba(139,32,16,.1);
 }
 
-/* FIX: neutral placeholder so empty-image state looks clean */
 .card-img {
   height: 200px;
   background-size: cover;
@@ -798,7 +796,6 @@ select option {
   overflow: hidden;
 }
 
-/* FIX: gradient only at the bottom third — image now visible */
 .card-gradient {
   position: absolute;
   inset: 0;
@@ -896,7 +893,6 @@ select option {
   transform: translateY(-3px);
 }
 
-/* FIX: banner visible on explore cards too */
 .explore-card-img {
   height: 160px;
   background-size: cover;
@@ -949,7 +945,6 @@ select option {
   background-color: #e0e0e0;
 }
 
-/* FIX: detail hero gradient — image now visible in top half */
 .detail-hero-grad {
   position: absolute;
   inset: 0;
@@ -1140,7 +1135,6 @@ select option {
   transform: rotate(180deg);
 }
 
-/* FIX: T&C and expandable body text — was #111 on white = invisible */
 .exp-body {
   display: none;
   padding: 0 16px 16px;
@@ -1154,7 +1148,7 @@ select option {
   animation: fadeUp .2s ease;
 }
 
-/* ─── TERMS & CONDITIONS — VISIBILITY FIX ─────────────────── */
+/* TERMS & CONDITIONS */
 .terms-wrap,
 #termsSection,
 [id*="terms"],
@@ -1174,7 +1168,6 @@ select option {
   line-height: 1.75;
 }
 
-/* Checkbox row (agree to T&C) */
 .terms-check-row {
   display: flex;
   align-items: flex-start;
@@ -1619,7 +1612,6 @@ select option {
   background-color: #e0e0e0;
 }
 
-/* FIX: ticket banner visible — gradient only at very bottom */
 .ticket-banner-grad {
   position: absolute;
   inset: 0;
@@ -2214,7 +2206,6 @@ select option {
   color: var(--white);
 }
 
-/* FIX: FAQ answer text was invisible on white bg */
 .faq-a {
   display: none;
   padding: 0 16px 14px;
@@ -3010,9 +3001,7 @@ body.on-creator-login #creatorVerificationMsg {
   color: #7a4b00!important;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   LOCATION CITY SHEET  (top-bar "Select City" picker)
-   ═══════════════════════════════════════════════════════════ */
+/* LOCATION CITY SHEET */
 .location-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -3197,273 +3186,6 @@ body.on-creator-login #creatorVerificationMsg {
   color: #6b7280;
   margin-top: 2px;
   line-height: 1.35;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   VENUE / MAP PICKER  (create-event "Select Venue Location")
-   FIX: was rendering as raw unstyled HTML — now a proper sheet
-   ═══════════════════════════════════════════════════════════ */
-.venue-picker-backdrop,
-#venuePickerBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9600;
-  display: none;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0,0,0,.50);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.venue-picker-backdrop.active,
-#venuePickerBackdrop.active {
-  display: flex;
-}
-
-.venue-picker-sheet,
-#venuePickerSheet {
-  width: 100%;
-  max-width: 520px;
-  max-height: 92vh;
-  background: #ffffff;
-  border-radius: 24px 24px 0 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 -8px 48px rgba(0,0,0,.18);
-  animation: slideUp .35s cubic-bezier(.32,1,.56,1);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Drag handle */
-.venue-picker-sheet::before,
-#venuePickerSheet::before {
-  content: "";
-  display: block;
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: #d1d5db;
-  margin: 14px auto 0;
-  flex-shrink: 0;
-}
-
-/* Sheet header */
-.venue-picker-head {
-  padding: 12px 18px 4px;
-}
-
-.venue-picker-title {
-  font-size: 17px;
-  font-weight: 800;
-  color: #111;
-}
-
-.venue-picker-sub {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 2px;
-}
-
-/* Search row */
-.venue-search-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px 8px;
-}
-
-.venue-search-box {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #f3f4f6;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 0 14px;
-  transition: border-color .2s;
-}
-
-.venue-search-box:focus-within {
-  border-color: var(--red);
-  background: #fff;
-}
-
-.venue-search-box svg {
-  width: 17px;
-  height: 17px;
-  stroke: #9ca3af;
-  fill: none;
-  stroke-width: 2;
-  flex-shrink: 0;
-}
-
-.venue-search-box input {
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #111;
-  font: 500 14px 'DM Sans', sans-serif;
-  padding: 12px 0;
-}
-
-.venue-search-box input::placeholder {
-  color: #9ca3af;
-}
-
-.venue-search-btn {
-  padding: 12px 18px;
-  background: var(--red);
-  color: #fff;
-  border: none;
-  border-radius: 14px;
-  font: 700 14px 'DM Sans', sans-serif;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background .2s;
-}
-
-.venue-search-btn:hover {
-  background: #a02814;
-}
-
-/* Map container */
-.venue-map-area {
-  flex: 1;
-  min-height: 200px;
-  background: #e8eaed;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Map hint overlay */
-.venue-map-hint {
-  position: absolute;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,.60);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 14px;
-  border-radius: 20px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/* Zoom controls */
-.venue-zoom-controls {
-  position: absolute;
-  right: 12px;
-  bottom: 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  z-index: 10;
-}
-
-.venue-zoom-btn {
-  width: 34px;
-  height: 34px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,.10);
-  color: #111;
-  transition: background .15s;
-}
-
-.venue-zoom-btn:hover {
-  background: #f3f4f6;
-}
-
-/* Status bar */
-.venue-status-row {
-  padding: 10px 18px;
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-  border-top: 1px solid #f0f0f0;
-  background: #fff;
-}
-
-.venue-status-row.has-location {
-  color: var(--red);
-  font-weight: 700;
-}
-
-/* CTA buttons */
-.venue-cta-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 16px 20px;
-  background: #fff;
-  border-top: 1px solid #f0f0f0;
-}
-
-.venue-use-current-btn {
-  width: 100%;
-  padding: 13px;
-  background: #f3f4f6;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 14px;
-  color: #374151;
-  font: 700 14px 'DM Sans', sans-serif;
-  cursor: pointer;
-  text-align: center;
-  transition: background .2s;
-}
-
-.venue-use-current-btn:hover {
-  background: #e9eaec;
-}
-
-.venue-confirm-btn {
-  width: 100%;
-  padding: 16px;
-  background: var(--red);
-  border: none;
-  border-radius: 16px;
-  color: #fff;
-  font: 700 16px 'DM Sans', sans-serif;
-  cursor: pointer;
-  text-align: center;
-  transition: background .2s, transform .15s;
-}
-
-.venue-confirm-btn:hover {
-  background: #a02814;
-  transform: translateY(-1px);
-}
-
-.venue-open-maps-btn {
-  width: 100%;
-  padding: 13px;
-  background: transparent;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 14px;
-  color: #374151;
-  font: 600 14px 'DM Sans', sans-serif;
-  cursor: pointer;
-  text-align: center;
-  transition: border-color .2s, background .2s, color .2s;
-}
-
-.venue-open-maps-btn:hover {
-  border-color: var(--red);
-  color: var(--red);
-  background: rgba(139,32,16,.04);
 }
 
 /* BRANDING */
