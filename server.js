@@ -256,6 +256,21 @@ const publicCreatorKycDocument = (document) => ({
   createdAt: document.created_at,
 });
 
+const publicAdminCreator = (creator) => ({
+  id: `CRT-${creator.id}`,
+  creatorId: creator.id,
+  name: creator.name,
+  email: creator.email,
+  phone: creator.phone,
+  category: creator.category,
+  status: creator.kyc_status,
+  events: Number(creator.events || 0),
+  revenue: Number(creator.revenue || 0),
+  fee: 8,
+  documents: (creator.documents || []).map(publicCreatorKycDocument),
+  createdAt: creator.created_at,
+});
+
 const publicCreatorEvent = (event) => ({
   id: event.id,
   creatorId: event.creator_id,
@@ -2864,20 +2879,7 @@ app.get("/admin/snapshot", requireAdmin, async (req, res) => {
         status: normalizeUserStatus(buyer.status),
         createdAt: buyer.created_at,
       })),
-      creators: creators.rows.map((creator) => ({
-        id: `CRT-${creator.id}`,
-        creatorId: creator.id,
-        name: creator.name,
-        email: creator.email,
-        phone: creator.phone,
-        category: creator.category,
-        status: creator.kyc_status,
-        events: Number(creator.events || 0),
-        revenue: Number(creator.revenue || 0),
-        fee: 8,
-        documents: (creator.documents || []).map(publicCreatorKycDocument),
-        createdAt: creator.created_at,
-      })),
+      creators: creators.rows.map(publicAdminCreator),
       events: events.rows.map(publicCreatorEvent),
       bookings: bookings.rows.map((booking) => ({
         id: booking.id,
@@ -2985,6 +2987,45 @@ app.patch("/admin/users/:userId/status", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("User status update failed:", err);
     res.status(500).json({ error: "Could not update user status" });
+  }
+});
+
+app.get("/admin/creators/:creatorId", requireAdmin, requireSuperAdmin, async (req, res) => {
+  try {
+    const rawCreatorId = String(req.params.creatorId || "").replace(/^CRT-/i, "");
+    const creatorId = Number(rawCreatorId);
+    if (!Number.isInteger(creatorId) || creatorId < 1) {
+      return res.status(400).json({ error: "Valid creatorId is required" });
+    }
+    const result = await pool.query(
+      `SELECT c.id, c.name, c.email, c.phone, c.category, c.kyc_status, c.created_at,
+        (
+          SELECT COUNT(*)::INTEGER
+          FROM creator_events e
+          WHERE e.creator_id=c.id
+        ) AS events,
+        (
+          SELECT COALESCE(SUM(b.total),0)::NUMERIC
+          FROM creator_events e
+          LEFT JOIN bookings b ON b.event_id=e.id
+          WHERE e.creator_id=c.id
+        ) AS revenue,
+        (
+          SELECT COALESCE(json_agg(d ORDER BY d.created_at DESC), '[]')
+          FROM creator_kyc_documents d
+          WHERE d.creator_id=c.id
+        ) AS documents
+       FROM creator_accounts c
+       WHERE c.id=$1`,
+      [creatorId],
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Creator account not found" });
+    }
+    res.json({ creator: publicAdminCreator(result.rows[0]) });
+  } catch (err) {
+    console.error("Creator detail load failed:", err);
+    res.status(500).json({ error: "Could not load creator documents" });
   }
 });
 

@@ -1195,6 +1195,7 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;">Creator Dashboard</div>
 <div style="font-size:13px;color:var(--grey);">Sign in with your creator account to manage events, track analytics, and scan tickets.</div>
 </div>
+<div id="creatorVerificationMsg" style="display:none;margin-bottom:16px;padding:12px 14px;border-radius:12px;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.28);color:#fde68a;font-size:12px;line-height:1.45;"></div>
 <div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:block;">Creator Email</label><input class="form-input" id="creatorLoginEmail" type="email" placeholder="creator@yourbrand.com" autocomplete="email"/></div>
 <div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:block;">Password</label><div style="position:relative;"><input class="form-input" id="creatorLoginPwd" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')loginAsCreator();" style="padding-right:48px;"/><button type="button" id="creatorPwdEyeBtn" onclick="toggleCreatorPassword()" aria-label="Show password" title="Show password" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;"><svg id="creatorPwdEyeIcon" viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
 <button class="cta-full" style="margin-bottom:16px;" onclick="loginAsCreator()">Sign In as Creator →</button>
@@ -1840,12 +1841,6 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
   <div style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:10px;font-weight:600;">KYC Documents</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
     <div style="padding:14px;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;text-align:center;cursor:pointer;" onclick="this.querySelector('input').click()">
-      <input type="file" accept=".pdf,.jpg,.png" style="display:none;" onchange="applyDocSelected(this,'pan')"/>
-      <div style="font-size:20px;margin-bottom:6px;">ID</div>
-      <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">PAN Card</div>
-      <div id="applyPANLabel" style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px;">Tap to upload</div>
-    </div>
-    <div style="padding:14px;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;text-align:center;cursor:pointer;" onclick="this.querySelector('input').click()">
       <input type="file" accept=".pdf,.jpg,.png" style="display:none;" onchange="applyDocSelected(this,'aadhaar')"/>
       <div style="font-size:20px;margin-bottom:6px;">🪪</div>
       <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">Aadhaar / ID</div>
@@ -2351,6 +2346,17 @@ function toggleCreatorPassword(){
       : '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>';
   }
 }
+function setCreatorVerificationMessage(message){
+  var el=document.getElementById('creatorVerificationMsg');
+  if(!el)return;
+  if(message){
+    el.textContent=message;
+    el.style.display='block';
+  }else{
+    el.textContent='';
+    el.style.display='none';
+  }
+}
 async function loginAsCreator(){
   var emailEl = document.getElementById('creatorLoginEmail');
   var pwdEl   = document.getElementById('creatorLoginPwd');
@@ -2362,13 +2368,19 @@ async function loginAsCreator(){
     return;
   }
   try {
+    setCreatorVerificationMessage('');
     var resp = await fetch(apiUrl('/creator/login'), {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({email:email, user:email, password:pwd})
     });
     var data = await readAuthResponse(resp);
-    if(!resp.ok) throw new Error(data.error || 'Creator login failed');
+    if(!resp.ok){
+      if(data.reason==='creator_not_verified'){
+        setCreatorVerificationMessage(data.error||'Your creator account is under verification. You can login after super admin approval.');
+      }
+      throw new Error(data.error || 'Creator login failed');
+    }
     var account = data.creator || {};
     STORE.creatorProfile = account;
     STORE.currentUser = account.email;
@@ -6001,6 +6013,15 @@ async function doLogin(){
           setButtonBusy('loginBtn',false,null,'Sign In');
           return;
         }
+        if(creatorData && creatorData.reason==='creator_not_verified'){
+          var notice=creatorData.error||'Your creator account is under verification. You can login after super admin approval.';
+          setCreatorVerificationMessage(notice);
+          showPage('page-creator-login');
+          var creatorEmail=document.getElementById('creatorLoginEmail'); if(creatorEmail)creatorEmail.value=enteredId;
+          showToast(notice);
+          setButtonBusy('loginBtn',false,null,'Sign In');
+          return;
+        }
       }catch(creatorErr){
       }
       // 5. Buyer login through the API
@@ -6104,6 +6125,7 @@ async function loadAdminSnapshot(){
   STORE.adminUsers=data.admins||STORE.adminUsers||[];
   admBuyersList=data.buyers||[];
   admCreatorsList=data.creators||[];
+  syncCreatorApplicationsFromCreators();
   STORE.events=(data.events||[]).map(function(event){event._persistedCreatorEvent=true;return event;});
   STORE.bookings=data.bookings||[];
   var payments=data.payments||[];
@@ -6136,6 +6158,61 @@ async function loadAdminSnapshot(){
 
 function adminAuthHeaders(){
   return {'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.getItem('VYBERA_ADMIN_TOKEN')||'')};
+}
+
+function escapeHtml(value){
+  return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
+function creatorStatusLabel(status){
+  return status==='Approved' || status==='Verified' ? 'Verified' : (status || 'Pending');
+}
+
+function normalizeCreatorApplication(creator){
+  creator=creator||{};
+  var docs=Array.isArray(creator.documents)?creator.documents:[];
+  return {
+    creatorId:creator.creatorId||String(creator.id||'').replace(/^CRT-/i,''),
+    id:creator.id,
+    name:creator.name||'Creator',
+    email:creator.email||'',
+    phone:creator.phone||'',
+    category:creator.category||'',
+    about:creator.about||'',
+    status:creator.status||'Pending',
+    ts:creator.createdAt||creator.ts||new Date().toISOString(),
+    docs:docs.length>0,
+    documents:docs,
+    docNames:docs.reduce(function(acc,doc){acc[doc.documentType||doc.fileName||doc.id]=doc.fileName;return acc;},{})
+  };
+}
+
+function syncCreatorApplicationsFromCreators(){
+  var existing=STORE.creatorApplications||[];
+  var byEmail={};
+  existing.forEach(function(app){
+    if(app&&app.email)byEmail[String(app.email).toLowerCase()]=app;
+  });
+  (admCreatorsList||[]).forEach(function(creator){
+    var key=String(creator.email||'').toLowerCase();
+    if(!key)return;
+    var normalized=normalizeCreatorApplication(creator);
+    if(byEmail[key]){
+      Object.assign(byEmail[key], normalized, {
+        status:creator.status||byEmail[key].status,
+        documents:normalized.documents,
+        docs:normalized.docs,
+        creatorId:normalized.creatorId||byEmail[key].creatorId,
+        id:normalized.id||byEmail[key].id
+      });
+    }else if(creator.status==='Pending'){
+      existing.push(normalized);
+      byEmail[key]=normalized;
+    }
+  });
+  STORE.creatorApplications=existing;
 }
 
 async function createAdminFromApi(payload){
@@ -6191,16 +6268,6 @@ async function applySocialLogin(user,options){
     safeSessionRemove('VYBERA_GOOGLE_PENDING');
     showToast('Signed in with Google');
     var url=new URL(window.location.href);
-    var appReturnUrl=url.searchParams.get('returnTo');
-    if(appReturnUrl && !isBlockedGoogleWebView()){
-      var callbackUrl=new URL(appReturnUrl);
-      callbackUrl.searchParams.set('token',data.token||'');
-      callbackUrl.searchParams.set('name',(data.user&&data.user.username)||name);
-      callbackUrl.searchParams.set('email',(data.user&&data.user.email)||email);
-      callbackUrl.searchParams.set('photoURL',(data.user&&data.user.profileImage)||user.photoURL||'');
-      window.location.href=callbackUrl.toString();
-      return;
-    }
     if(url.searchParams.has('google')){
       url.searchParams.delete('google');
       window.history.replaceState(null,'',url.pathname+url.search+url.hash);
@@ -6229,69 +6296,14 @@ window.localGoogleSignInFallback=localGoogleSignInFallback;
 function safeSessionGet(key){try{return sessionStorage.getItem(key);}catch(_){return null;}}
 function safeSessionSet(key,value){try{sessionStorage.setItem(key,value);}catch(_){}}
 function safeSessionRemove(key){try{sessionStorage.removeItem(key);}catch(_){}}
-function decodeLaunchUrl(rawUrl){
-  var value=String(rawUrl||'');
-  try{
-    if(value.indexOf('vybera%3A')===0 || value.indexOf('vybera%3a')===0){
-      return decodeURIComponent(value);
-    }
-  }catch(_){}
-  return value;
-}
-async function applyGoogleAppCallback(rawUrl){
-  var launchUrl=decodeLaunchUrl(rawUrl);
-  var parsed;
-  try{
-    parsed=new URL(launchUrl);
-  }catch(err){
-    console.error('Invalid Google callback URL:',err);
-    return;
-  }
-  if(parsed.protocol!=='vybera:' || parsed.hostname!=='google-login')return;
-  var params=parsed.searchParams;
-  var error=params.get('error');
-  if(error){
-    safeSessionRemove('VYBERA_GOOGLE_PENDING');
-    showToast(error);
-    return;
-  }
-  var token=params.get('token')||'';
-  var email=params.get('email')||'';
-  if(!token || !email){
-    safeSessionRemove('VYBERA_GOOGLE_PENDING');
-    showToast('Google login did not return account details');
-    return;
-  }
-  var name=params.get('name')||'Google User';
-  var photoURL=params.get('photoURL')||'';
-  localStorage.setItem('VYBERA_BUYER_TOKEN',token);
-  applyBuyerProfile({username:name,email:email,profileImage:photoURL});
-  try{
-    await loadBuyerBookingHistory();
-    await loadProfileCreatorEvents();
-    renderProfileCreatorEvents();
-  }catch(err){
-    console.error('Post Google login refresh failed:',err);
-  }
-  safeSessionRemove('VYBERA_GUEST_MODE');
-  safeSessionRemove('VYBERA_GOOGLE_PENDING');
-  showToast('Signed in with Google');
-  if(continueAfterBuyerAuth())return;
-  navigateBuyerHome();
-}
-window.handleOpenURL=function(url){
-  setTimeout(function(){
-    applyGoogleAppCallback(url);
-  },0);
-};
 function isBlockedGoogleWebView(){
   var ua=navigator.userAgent||'';
   return !!window.cordova || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
 }
 function openGoogleInSystemBrowser(){
-  safeSessionSet('VYBERA_GOOGLE_PENDING','1');
-  var url='https://vybera.onrender.com?google=1&returnTo='+encodeURIComponent('vybera://google-login/');
-  showToast('Opening Google sign-in...');
+  safeSessionRemove('VYBERA_GOOGLE_PENDING');
+  var url='https://vybera.onrender.com?google=1';
+  alert('Google sign-in cannot complete inside the app WebView. VYBERA will open your phone browser for Google sign-in. For in-app login, use email and password.');
   if(window.cordova && window.cordova.InAppBrowser){
     window.cordova.InAppBrowser.open(url,'_system','location=yes');
     return true;
@@ -6301,7 +6313,8 @@ function openGoogleInSystemBrowser(){
 }
 async function signInWithGoogle(){
   if(isBlockedGoogleWebView()){
-    return openGoogleInSystemBrowser();
+    showToast('Completing Google login in app...');
+    return localGoogleSignInFallback();
   }
   safeSessionRemove('VYBERA_GUEST_MODE');
   safeSessionSet('VYBERA_GOOGLE_PENDING','1');
@@ -6313,7 +6326,8 @@ async function signInWithGoogle(){
     await new Promise(function(resolve){setTimeout(resolve,150);});
     if(window.vyberaFirebaseGoogleSignIn)return window.vyberaFirebaseGoogleSignIn();
   }
-  showToast('Google sign-in is not ready. Please try again.');
+  showToast('Google redirect unavailable. Using local database sign-in.');
+  return localGoogleSignInFallback();
 }
 window.signInWithGoogle=signInWithGoogle;
 
@@ -6364,18 +6378,8 @@ populateNotifs();
 restoreUserLocation();
 refreshBuyerHome();
 if(new URLSearchParams(location.search).get('google')==='1' && !isBlockedGoogleWebView()){
-  setTimeout(async function(){
-    if(window.vyberaFirebaseCompleteGoogleReturn){
-      return window.vyberaFirebaseCompleteGoogleReturn();
-    }
-    showToast('Google is loading...');
-    for(var i=0;i<30;i++){
-      await new Promise(function(resolve){setTimeout(resolve,150);});
-      if(window.vyberaFirebaseCompleteGoogleReturn){
-        return window.vyberaFirebaseCompleteGoogleReturn();
-      }
-    }
-    showToast('Google sign-in is not ready. Please try again.');
+  setTimeout(function(){
+    signInWithGoogle();
   },400);
 }
 if(safeSessionGet('VYBERA_GOOGLE_PENDING')==='1'){
@@ -6961,33 +6965,29 @@ function admRenderBuyers(){
 
 var admCreatorsList = [];
 
-function admEscapeHtml(value){
-  return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
-  });
-}
-
 function admRenderCreators(){
   var tbody = document.getElementById('creatorsBody');
   if(!tbody) return;
+  syncCreatorApplicationsFromCreators();
   tbody.innerHTML = admCreatorsList.map(function(c,i){
     var verified = c.status==='Verified'||c.status==='Approved';
     var pending = c.status==='Pending';
     var bc = verified?'green':pending?'yellow':'red';
-    var statusLabel = c.status==='Approved'?'Verified':c.status;
-    var docsCount = (c.documents||[]).length;
-    return '<tr onclick="admOpenCreatorReview(\''+c.id+'\')" style="cursor:pointer;"><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
-      +'<td><div style="font-weight:600;color:var(--adm-text);">'+admEscapeHtml(c.name)+'</div><div style="font-size:10px;color:var(--adm-text2);">'+admEscapeHtml(c.email)+'</div><div style="font-size:10px;color:#00D4D4;margin-top:2px;">Review '+docsCount+' document'+(docsCount===1?'':'s')+'</div></td>'
-      +'<td><span class="adm-badge blue">'+admEscapeHtml(c.category||'—')+'</span></td>'
+    var statusLabel = creatorStatusLabel(c.status);
+    var docs=(c.documents||[]).length;
+    return '<tr onclick="admOpenCreatorReview(\''+escapeHtml(c.id)+'\')" style="cursor:pointer;">'
+      +'<td style="color:var(--adm-text2);">'+(i+1)+'</td>'
+      +'<td><div style="font-weight:600;color:var(--adm-text);">'+escapeHtml(c.name)+'</div><div style="font-size:10px;color:var(--adm-text2);">'+escapeHtml(c.email)+'</div></td>'
+      +'<td><span class="adm-badge blue">'+escapeHtml(c.category||'—')+'</span></td>'
       +'<td>'+c.events+'</td>'
       +'<td style="font-size:11px;">₹'+c.revenue.toLocaleString('en-IN')+'</td>'
       +'<td><span style="font-size:12px;font-weight:600;color:var(--adm-text);">'+c.fee+'%</span></td>'
-      +'<td><span class="adm-badge '+bc+'">'+statusLabel+'</span></td>'
-      +'<td><div style="display:flex;gap:4px;">'
+      +'<td><span class="adm-badge '+bc+'">'+escapeHtml(statusLabel)+'</span><div style="font-size:10px;color:var(--adm-text2);margin-top:4px;">'+docs+' document'+(docs===1?'':'s')+'</div></td>'
+      +'<td><div style="display:flex;gap:4px;" onclick="event.stopPropagation();">'
       +(pending
-        ? '<button onclick="event.stopPropagation();admOpenCreatorReview(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Verify</button>'
-        : '<button onclick="event.stopPropagation();admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
-      +'<button onclick="event.stopPropagation();admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>'
+        ? '<button onclick="admOpenCreatorReview(\''+escapeHtml(c.id)+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Review</button>'
+        : '<button onclick="admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
+      +'<button onclick="admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>'
       +'</div></td></tr>';
   }).join('');
 }
@@ -7019,43 +7019,77 @@ function admReinstateUser(id){
   admSetBuyerStatus(id,'Active');
 }
 function admNotifyUser(name){ admShowToast('Notification sent to: '+name); STORE.addAdminLog('Notify User',name); }
-function admOpenCreatorReview(id){
-  var c = admCreatorsList.find(function(x){return x.id===id;});
-  if(!c) return;
-  var existing=document.getElementById('creatorReviewModal');
-  if(existing) existing.remove();
-  var docs=c.documents||[];
-  var statusLabel=c.status==='Approved'?'Verified':c.status;
-  var docHtml=docs.length?docs.map(function(doc){
-    var typeMap={pan:'PAN Card',aadhaar:'Aadhaar / ID',gst:'GST Certificate',bank:'Bank Account'};
-    var rawType=String(doc.documentType||'document').toLowerCase();
-    var type=typeMap[rawType]||String(doc.documentType||'document').replace(/^\w/,function(ch){return ch.toUpperCase();});
-    var url=doc.url||'';
-    return '<div style="padding:12px;border:1px solid var(--adm-border);border-radius:10px;background:var(--adm-input-bg);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">'
-      +'<div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--adm-text);">'+admEscapeHtml(type)+'</div><div style="font-size:11px;color:var(--adm-text2);word-break:break-word;">'+admEscapeHtml(doc.fileName||'Uploaded document')+'</div></div>'
-      +(url?'<a class="adm-btn adm-btn-sm adm-btn-ghost" href="'+admEscapeHtml(url)+'" target="_blank" rel="noopener">Open</a>':'<span style="font-size:10px;color:var(--adm-text2);">No link</span>')
-      +'</div>';
-  }).join(''):'<div style="padding:14px;border:1px solid var(--adm-border);border-radius:10px;color:var(--adm-text2);font-size:12px;">No KYC documents found for this creator.</div>';
-  var modal=document.createElement('div');
-  modal.id='creatorReviewModal';
-  modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;';
-  modal.innerHTML='<div style="width:100%;max-width:520px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:14px;padding:18px;box-shadow:0 18px 70px rgba(0,0,0,.65);font-family:\'DM Sans\',sans-serif;max-height:86vh;overflow-y:auto;">'
-    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;"><div><div style="font-size:16px;font-weight:800;color:var(--adm-text);">Creator Review</div><div style="font-size:12px;color:var(--adm-text2);">'+admEscapeHtml(c.name)+' · '+admEscapeHtml(c.email)+'</div></div><button data-cancel="1" class="adm-btn adm-btn-sm adm-btn-ghost">Close</button></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;"><div style="padding:10px;border:1px solid var(--adm-border);border-radius:10px;"><div style="font-size:10px;color:var(--adm-text2);">Category</div><div style="font-size:12px;color:var(--adm-text);font-weight:700;">'+admEscapeHtml(c.category||'-')+'</div></div><div style="padding:10px;border:1px solid var(--adm-border);border-radius:10px;"><div style="font-size:10px;color:var(--adm-text2);">Status</div><div style="font-size:12px;color:var(--adm-text);font-weight:700;">'+admEscapeHtml(statusLabel)+'</div></div></div>'
-    +'<div style="padding:10px;border:1px solid rgba(0,212,212,0.24);border-radius:10px;background:rgba(0,212,212,0.06);font-size:11px;color:var(--adm-text2);margin-bottom:12px;">Open each PAN, GST, and bank document. Verify the details are valid before approving this creator login.</div>'
-    +'<div style="font-size:12px;font-weight:800;color:var(--adm-text);margin-bottom:8px;">Submitted Documents</div>'
-    +docHtml
-    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
-    +(c.status==='Pending'?'<button data-verify="1" class="adm-btn adm-btn-teal">Verify Creator</button>':'')
-    +'</div></div>';
-  document.body.appendChild(modal);
-  modal.addEventListener('click',function(e){
-    if(e.target===modal||e.target.closest('[data-cancel]')) modal.remove();
-    if(e.target.closest('[data-verify]')) admVerifyCreator(id);
+
+function admFindCreatorByAnyId(id){
+  return (admCreatorsList||[]).find(function(x){
+    return String(x.id)===String(id) || String(x.creatorId)===String(id) || String(x.id)===('CRT-'+String(id));
   });
 }
+
+function admCreatorDocumentHtml(doc){
+  var url=doc&&doc.url?apiUrl(doc.url):'';
+  var type=String((doc&&doc.documentType)||'Document').toUpperCase();
+  var name=(doc&&doc.fileName)||type;
+  if(!url){
+    return '<div style="padding:12px;border:1px solid var(--adm-border);border-radius:8px;color:var(--adm-text2);font-size:12px;">'+escapeHtml(name)+' unavailable</div>';
+  }
+  var isImage=/^image\//i.test(doc.contentType||'') || /\.(png|jpe?g|webp|gif)$/i.test(name);
+  return '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;border:1px solid var(--adm-border);border-radius:8px;overflow:hidden;background:var(--adm-bg2);">'
+    +(isImage?'<img src="'+escapeHtml(url)+'" alt="'+escapeHtml(name)+'" style="width:100%;height:150px;object-fit:cover;display:block;background:#000;">':'')
+    +'<div style="padding:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+    +'<div style="min-width:0;"><div style="font-size:11px;font-weight:800;color:var(--adm-text);">'+escapeHtml(type)+'</div><div style="font-size:10px;color:var(--adm-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(name)+'</div></div>'
+    +'<span class="adm-btn adm-btn-sm adm-btn-ghost" style="pointer-events:none;">Open</span>'
+    +'</div></a>';
+}
+
+async function admOpenCreatorReview(id){
+  var c=admFindCreatorByAnyId(id);
+  if(!c)return;
+  if(isSuperAdmin&& !isSuperAdmin()){admShowToast('Only Super Admin can verify creators');return;}
+  try{
+    var resp=await fetch(apiUrl('/admin/creators/'+encodeURIComponent(c.id)),{headers:adminAuthHeaders()});
+    var data=await readAuthResponse(resp);
+    if(resp.ok && data.creator){
+      Object.assign(c,data.creator);
+      syncCreatorApplicationsFromCreators();
+    }
+  }catch(err){}
+  admShowCreatorReviewModal(c);
+}
+
+function admShowCreatorReviewModal(c){
+  var existing=document.getElementById('creatorKycReviewModal');
+  if(existing)existing.remove();
+  var docs=Array.isArray(c.documents)?c.documents:[];
+  var modal=document.createElement('div');
+  modal.id='creatorKycReviewModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.74);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;';
+  modal.innerHTML='<div style="width:100%;max-width:760px;max-height:90vh;overflow:auto;background:var(--adm-bg);border:1px solid var(--adm-border);border-radius:16px;padding:18px;box-shadow:0 20px 80px rgba(0,0,0,.65);font-family:\'DM Sans\',sans-serif;">'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;">'
+    +'<div><div style="font-size:18px;font-weight:900;color:var(--adm-text);">Creator KYC Review</div><div style="font-size:12px;color:var(--adm-text2);margin-top:4px;">Check submitted files before verification</div></div>'
+    +'<button data-close="1" class="adm-btn adm-btn-sm adm-btn-ghost">Close</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
+    +'<div style="padding:10px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:8px;"><div style="font-size:10px;color:var(--adm-text2);text-transform:uppercase;">Name</div><div style="font-weight:800;color:var(--adm-text);">'+escapeHtml(c.name)+'</div></div>'
+    +'<div style="padding:10px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:8px;"><div style="font-size:10px;color:var(--adm-text2);text-transform:uppercase;">Email</div><div style="font-weight:800;color:var(--adm-text);word-break:break-word;">'+escapeHtml(c.email)+'</div></div>'
+    +'<div style="padding:10px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:8px;"><div style="font-size:10px;color:var(--adm-text2);text-transform:uppercase;">Category</div><div style="font-weight:800;color:var(--adm-text);">'+escapeHtml(c.category||'—')+'</div></div>'
+    +'<div style="padding:10px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:8px;"><div style="font-size:10px;color:var(--adm-text2);text-transform:uppercase;">Status</div><div style="font-weight:800;color:var(--adm-text);">'+escapeHtml(creatorStatusLabel(c.status))+'</div></div></div>'
+    +'<div style="font-size:13px;font-weight:800;color:var(--adm-text);margin-bottom:8px;">Submitted documents</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px;">'
+    +(docs.length?docs.map(admCreatorDocumentHtml).join(''):'<div style="grid-column:1/-1;padding:18px;border:1px solid var(--adm-border);border-radius:8px;color:var(--adm-text2);text-align:center;">No documents found for this creator.</div>')
+    +'</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">'
+    +(c.status==='Pending'?'<button data-reject="1" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Reject</button><button data-verify="1" class="adm-btn adm-btn-sm adm-btn-green">Verify Creator</button>':'<button data-verify="1" class="adm-btn adm-btn-sm adm-btn-green">Mark Verified</button>')
+    +'</div></div>';
+  document.body.appendChild(modal);
+  function close(){modal.remove();}
+  modal.addEventListener('click',function(e){if(e.target===modal||e.target.closest('[data-close]'))close();});
+  modal.querySelector('[data-verify]').addEventListener('click',async function(){await admVerifyCreator(c.id);close();});
+  var reject=modal.querySelector('[data-reject]');
+  if(reject)reject.addEventListener('click',async function(){await admRejectCreator(c.id);close();});
+}
+
 async function admVerifyCreator(id){
-  var c = admCreatorsList.find(function(x){return x.id===id;});
+  var c = admFindCreatorByAnyId(id);
   if(!c) return;
   try{
     var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
@@ -7067,17 +7101,47 @@ async function admVerifyCreator(id){
     var data=await readAuthResponse(resp);
     if(!resp.ok) throw new Error(data.error||'Could not verify creator');
     c.status='Approved';
+    var app=(STORE.creatorApplications||[]).find(function(a){return String(a.email||'').toLowerCase()===String(c.email||'').toLowerCase();});
+    if(app){app.status='Approved';app.verifiedAt=new Date().toISOString();}
     admRenderCreators();
-    var modal=document.getElementById('creatorReviewModal'); if(modal) modal.remove();
+    if(typeof admRenderApplications==='function')admRenderApplications();
     admShowToast('✅ Creator verified: '+c.name);
     STORE.addAdminLog('Verify Creator',c.name);
   }catch(err){
     admShowToast(err.message||'Could not verify creator');
   }
 }
-function admVerifyAllCreators(){
-  Promise.all(admCreatorsList.filter(function(c){return c.status==='Pending';}).map(function(c){return admVerifyCreator(c.id);}))
-    .then(function(){admShowToast('✅ All pending creators verified'); STORE.addAdminLog('Bulk Verify','All pending creators verified');});
+async function admRejectCreator(id){
+  var c=admFindCreatorByAnyId(id);
+  if(!c)return;
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/creators/'+encodeURIComponent(c.id)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:'Rejected'})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok)throw new Error(data.error||'Could not reject creator');
+    c.status='Rejected';
+    var app=(STORE.creatorApplications||[]).find(function(a){return String(a.email||'').toLowerCase()===String(c.email||'').toLowerCase();});
+    if(app){app.status='Rejected';app.rejectedAt=new Date().toISOString();}
+    admRenderCreators();
+    if(typeof admRenderApplications==='function')admRenderApplications();
+    admShowToast('Creator rejected: '+c.name);
+    STORE.addAdminLog('Reject Creator KYC',c.name);
+  }catch(err){
+    admShowToast(err.message||'Could not reject creator');
+  }
+}
+async function admVerifyAllCreators(){
+  var pending=(admCreatorsList||[]).filter(function(c){return c.status==='Pending';});
+  if(!pending.length){admShowToast('No pending creators');return;}
+  for(var i=0;i<pending.length;i++){
+    await admVerifyCreator(pending[i].id);
+  }
+  admShowToast('✅ All pending creators verified');
+  STORE.addAdminLog('Bulk Verify','All pending creators verified');
 }
 function admAdjustFee(id){
   var c = admCreatorsList.find(function(x){return x.id===id;});
@@ -9426,19 +9490,20 @@ async function submitCreatorApplication(){
     VyberaEventBus.emit('creator_application', {name:name, email:email, category:cat});
     STORE.addAdminLog('Creator Application', name + ' — ' + cat);
 
-    _applyDocs = {pan:null, aadhaar:null, gst:null, bank:null};
+    _applyDocs = {aadhaar:null, gst:null, bank:null};
     var m = document.getElementById('creatorApplyModal');
     if(m) m.style.display = 'none';
     ['applyName','applyEmail','applyPhone','applyAbout','applyPassword'].forEach(function(id){
       var e = document.getElementById(id); if(e) e.value='';
     });
     document.querySelectorAll('#creatorApplyModal input[type="file"]').forEach(function(input){ input.value=''; });
-    [['applyPANLabel','Tap to upload'],['applyAadhaarLabel','Tap to upload'],['applyGSTLabel','Tap to upload'],['applyBankLabel','Tap to upload']].forEach(function(item){
+    [['applyAadhaarLabel','Tap to upload'],['applyGSTLabel','Tap to upload'],['applyBankLabel','Tap to upload']].forEach(function(item){
       var label=document.getElementById(item[0]); if(label){label.textContent=item[1];label.style.color='rgba(255,255,255,0.35)';}
     });
     var loginEmail=document.getElementById('creatorLoginEmail'); if(loginEmail) loginEmail.value=email;
-    showToast(data.message||'Creator account created successfully. Sign in to continue.');
     showPage('page-creator-login');
+    setCreatorVerificationMessage('Creator application submitted successfully. Your account is under super admin verification; you can login with email and password after approval.');
+    showToast(data.message||'Creator application submitted successfully. Verification is pending.');
   } catch(err) {
     console.error(err);
     showToast(err.message||'Creator application failed');
@@ -9886,14 +9951,14 @@ function addRecentScan(b, num){
 
 
 // ── KYC doc upload handler ──
-var _applyDocs = {pan:null, aadhaar:null, gst:null, bank:null};
+var _applyDocs = {aadhaar:null, gst:null, bank:null};
 
 function applyDocSelected(input, type){
   var file = input.files[0];
   if(!file) return;
   if(file.size > 8 * 1024 * 1024){ showToast('Each KYC document must be 8 MB or smaller'); input.value=''; return; }
   _applyDocs[type] = file;
-  var labelId = {pan:'applyPANLabel', aadhaar:'applyAadhaarLabel', gst:'applyGSTLabel', bank:'applyBankLabel'}[type];
+  var labelId = {aadhaar:'applyAadhaarLabel', gst:'applyGSTLabel', bank:'applyBankLabel'}[type];
   var el = document.getElementById(labelId);
   if(el){ el.textContent = '✅ ' + file.name.substring(0,20); el.style.color='#4ade80'; }
 }
@@ -9982,16 +10047,48 @@ async function admVerifyCreatorApp(idx){
   }
 }
 
-function admRejectCreatorApp(idx){
+function admOpenCreatorAppReview(idx){
+  var app=(STORE.creatorApplications||[])[idx];
+  if(!app)return;
+  var creator=(admCreatorsList||[]).find(function(c){
+    return String(c.email||'').toLowerCase()===String(app.email||'').toLowerCase()
+      || String(c.id)===String(app.id)
+      || String(c.creatorId)===String(app.creatorId);
+  });
+  if(creator)return admOpenCreatorReview(creator.id);
+  admShowToast('Creator record not found. Refresh admin data and try again.');
+}
+
+async function admRejectCreatorApp(idx){
   var apps = STORE.creatorApplications||[];
   var app = apps[idx];
   if(!app) return;
   var reason = prompt('Reason for rejection:'); if(!reason) return;
-  app.status = 'Rejected';
-  admShowToast('Creator rejected: '+app.name);
-  STORE.addAdminLog('Reject Creator KYC', app.name+' — '+reason);
-  VyberaEventBus.emit('creator_update', {type:'kyc_rejected', name:app.name, reason:reason});
-  admRefreshVerificationQueue();
+  try{
+    var creator=(admCreatorsList||[]).find(function(c){
+      return String(c.email||'').toLowerCase()===String(app.email||'').toLowerCase();
+    });
+    if(creator){
+      await admRejectCreator(creator.id);
+    }else{
+      var resp=await fetch(apiUrl('/admin/creators/status-by-email'),{
+        method:'PATCH',
+        headers:adminAuthHeaders(),
+        body:JSON.stringify({email:app.email,status:'Rejected'})
+      });
+      var data=await readAuthResponse(resp);
+      if(!resp.ok)throw new Error(data.error||'Could not reject creator');
+    }
+    app.status = 'Rejected';
+    app.rejectionReason=reason;
+    admShowToast('Creator rejected: '+app.name);
+    STORE.addAdminLog('Reject Creator KYC', app.name+' — '+reason);
+    VyberaEventBus.emit('creator_update', {type:'kyc_rejected', name:app.name, reason:reason});
+    admRefreshVerificationQueue();
+    admRenderApplications();
+  }catch(err){
+    admShowToast(err.message||'Could not reject creator');
+  }
 }
 
 // ── Enhance admin Users panel to show creator applications ──
@@ -10011,6 +10108,7 @@ function admUserTab(tab){
 function admRenderApplications(){
   var sec = document.getElementById('usec-applications');
   if(!sec) return;
+  syncCreatorApplicationsFromCreators();
   var apps = STORE.creatorApplications||[];
   sec.innerHTML = '<div class="adm-sec-hdr"><div><div class="adm-sec-title">Creator Applications</div><div class="adm-sec-sub" style="color:var(--adm-text2);">'+apps.length+' applications</div></div></div>'
     +'<div class="adm-card" style="overflow-x:auto;"><table class="adm-table">'
@@ -10019,16 +10117,17 @@ function admRenderApplications(){
     +(apps.length?apps.map(function(a,i){
       var bc=a.status==='Approved'?'green':a.status==='Rejected'?'red':'yellow';
       var d=new Date(a.ts); var ds=d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();
-      return '<tr>'
-        +'<td style="font-weight:600;color:var(--adm-text);">'+a.name+'</td>'
-        +'<td style="font-size:11px;color:var(--adm-text2);">'+a.email+'</td>'
-        +'<td>'+a.category+'</td>'
-        +'<td><span style="font-size:10px;color:'+(a.docs?'#22c55e':'#eab308')+';">'+(a.docs?'✅ Uploaded':'⏳ Pending')+'</span></td>'
+      var docCount=(a.documents||[]).length;
+      return '<tr onclick="admOpenCreatorAppReview('+i+')" style="cursor:pointer;">'
+        +'<td style="font-weight:600;color:var(--adm-text);">'+escapeHtml(a.name)+'</td>'
+        +'<td style="font-size:11px;color:var(--adm-text2);">'+escapeHtml(a.email)+'</td>'
+        +'<td>'+escapeHtml(a.category)+'</td>'
+        +'<td><span style="font-size:10px;color:'+(a.docs?'#22c55e':'#eab308')+';">'+(a.docs?'Uploaded ('+docCount+')':'Pending')+'</span></td>'
         +'<td style="font-size:11px;color:var(--adm-text2);">'+ds+'</td>'
-        +'<td><span class="adm-badge '+bc+'">'+a.status+'</span></td>'
-        +'<td><div style="display:flex;gap:4px;">'
+        +'<td><span class="adm-badge '+bc+'">'+escapeHtml(creatorStatusLabel(a.status))+'</span></td>'
+        +'<td><div style="display:flex;gap:4px;" onclick="event.stopPropagation();">'
         +(a.status==='Pending'?
-          '<button onclick="admVerifyCreatorApp('+i+')" class="adm-btn adm-btn-sm adm-btn-green">Approve</button>'
+          '<button onclick="admOpenCreatorAppReview('+i+')" class="adm-btn adm-btn-sm adm-btn-green">Review</button>'
           +'<button onclick="admRejectCreatorApp('+i+')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Reject</button>'
           :'<span style="font-size:10px;color:var(--adm-text2);">Done</span>')
         +'</div></td></tr>';
