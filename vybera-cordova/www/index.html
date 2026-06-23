@@ -397,7 +397,64 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .pend-badge{background:rgba(251,191,36,.1);color:#fbbf24;}
 .form-input option,.coupon-input option,select option{background:#111;color:#fff;}
 
-img.vylogo { background: transparent; mix-blend-mode: normal; }
+body.on-splash,
+body.on-login,
+body.on-creator-login{
+  background:#fff;
+}
+body.on-splash #page-splash,
+body.on-login #page-login,
+body.on-creator-login #page-creator-login{
+  background:#fff!important;
+  color:#111!important;
+}
+body.on-login #page-login > div[style*="pointer-events:none"],
+body.on-creator-login #page-creator-login > div[style*="pointer-events:none"]{
+  display:none!important;
+}
+body.on-splash #page-splash p,
+body.on-splash #page-splash div:not([style*="background:#8B2010"]),
+body.on-login #authHeroSub,
+body.on-login #page-login label,
+body.on-login #page-login p,
+body.on-login #page-login div:not(.back-btn):not([style*="background:var(--red)"]):not([style*="background:#8B2010"]),
+body.on-creator-login #page-creator-login label,
+body.on-creator-login #page-creator-login p,
+body.on-creator-login #page-creator-login div:not(.back-btn):not([style*="background:var(--red)"]):not([style*="background:#8B2010"]){
+  color:#5f6368!important;
+}
+body.on-login #authHeroTitle,
+body.on-creator-login #page-creator-login div[style*="Bebas Neue"]{
+  color:#111!important;
+}
+body.on-splash #page-splash button[onclick="quickLogin()"],
+body.on-login #page-login button:not(#tab-signin):not(#loginBtn):not(#signupBtn):not(#sendOtpBtn):not(#verifyOtpBtn),
+body.on-creator-login #page-creator-login button:not(.cta-full){
+  background:#fff!important;
+  border-color:#dadce0!important;
+  color:#202124!important;
+}
+body.on-login #tab-signup{
+  background:transparent!important;
+  border-color:transparent!important;
+  color:#5f6368!important;
+}
+body.on-login #page-login .form-input,
+body.on-creator-login #page-creator-login .form-input{
+  background:#fff!important;
+  border-color:#dadce0!important;
+  color:#111!important;
+}
+body.on-login #page-login .form-input::placeholder,
+body.on-creator-login #page-creator-login .form-input::placeholder{
+  color:#8b8f97!important;
+}
+body.on-creator-login #creatorVerificationMsg{
+  background:#fff7dd!important;
+  border-color:#f5d36a!important;
+  color:#7a4b00!important;
+}
+img.vylogo { background: transparent; mix-blend-mode: multiply; }
 </style>
 </head>
 <body class="on-splash">
@@ -921,12 +978,12 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 </div>
 <div class="booking-step" id="bstep3">
 <div style="font-size:18px;font-weight:700;margin-bottom:16px;">Payment Method</div>
-<div class="pay-option selected" onclick="selPay(this)"><div class="pay-icon">🔵</div><div class="pay-info"><p>UPI</p><span>Google Pay, PhonePe, Paytm</span></div><div class="pay-radio"></div></div>
-<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💳</div><div class="pay-info"><p>Debit / Credit Card</p><span>Visa, Mastercard, Rupay</span></div><div class="pay-radio"></div></div>
-<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💰</div><div class="pay-info"><p>Net Banking</p><span>All major banks</span></div><div class="pay-radio"></div></div>
-<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">👛</div><div class="pay-info"><p>Wallet</p><span>Mobikwik, Freecharge</span></div><div class="pay-radio"></div></div>
+<div class="pay-option selected" onclick="selPay(this)"><div class="pay-icon">🔵</div><div class="pay-info"><p>UPI</p><span>Pay to Malarapu Pradeep · 6300844129-5@ybl</span></div><div class="pay-radio"></div></div>
+<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💳</div><div class="pay-info"><p>Debit / Credit Card</p><span>Coming soon</span></div><div class="pay-radio"></div></div>
+<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💰</div><div class="pay-info"><p>Net Banking</p><span>Coming soon</span></div><div class="pay-radio"></div></div>
+<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">👛</div><div class="pay-info"><p>Wallet</p><span>Coming soon</span></div><div class="pay-radio"></div></div>
 <div style="background:var(--bg2);border-radius:14px;padding:14px;margin-bottom:20px;border:1px solid var(--glass-border);"><div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Amount to pay</div><div id="payAmountLabel" style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--neon)">₹4,836</div></div>
-<button class="cta-full" id="payNowBtn" onclick="payWithPayU()">🔒 Pay with PayU — ₹4,836</button>
+<button class="cta-full" id="payNowBtn" onclick="payWithPayU()">Pay with UPI — ₹4,836</button>
 </div>
 </div>
 
@@ -3381,7 +3438,7 @@ function updateOrderSummary() {
   if(couponLabel)couponLabel.textContent=APPLIED_COUPON?('Coupon '+APPLIED_COUPON.code):'Coupon discount';
   var t=document.getElementById('totalAmt');if(t)t.textContent=total<=0?'Free':'₹'+total.toLocaleString('en-IN');
   var p=document.getElementById('payAmountLabel');if(p)p.textContent=total<=0?'Free':'₹'+total.toLocaleString('en-IN');
-  var b=document.getElementById('payNowBtn');if(b)b.textContent=total<=0?'Confirm Free Booking':'🔒 Pay with PayU — ₹'+total.toLocaleString('en-IN');
+  var b=document.getElementById('payNowBtn');if(b)b.textContent=total<=0?'Confirm Free Booking':'Pay with UPI — ₹'+total.toLocaleString('en-IN');
   var q2=document.getElementById('qtySummary');if(q2)q2.textContent=q;
   var qn=document.getElementById('qtyNum');if(qn)qn.textContent=q;
   var selected=document.querySelector('.ticket-option.selected');
@@ -3493,7 +3550,76 @@ function submitPayUForm(action, fields){
   HTMLFormElement.prototype.submit.call(form);
 }
 
+var VYBERA_PAYMENT_UPI_ID='6300844129-5@ybl';
+var VYBERA_PAYMENT_UPI_NAME='Malarapu Pradeep';
+
+function makeUpiPaymentUrl(pending){
+  var totals=(pending&&pending.totals)||{};
+  var amount=Number(totals.total||0).toFixed(2);
+  var note='VYBERA '+((pending&&pending.bookingId)||'Booking');
+  var params=[
+    ['pa',VYBERA_PAYMENT_UPI_ID],
+    ['pn',VYBERA_PAYMENT_UPI_NAME],
+    ['am',amount],
+    ['cu','INR'],
+    ['tn',note],
+    ['tr',(pending&&pending.bookingId)||'']
+  ];
+  return 'upi://pay?'+params.map(function(item){return encodeURIComponent(item[0])+'='+encodeURIComponent(item[1]);}).join('&');
+}
+
+function openUpiPaymentUrl(url){
+  if(window.cordova && window.cordova.InAppBrowser){
+    window.cordova.InAppBrowser.open(url,'_system','location=yes');
+    return;
+  }
+  window.location.href=url;
+}
+
+function setUpiCompletionButton(){
+  var btn=document.getElementById('payNowBtn');
+  if(!btn)return;
+  btn.disabled=false;
+  btn.textContent='I have paid - Show QR';
+  btn.onclick=function(){completePendingUpiPayment();};
+}
+
+async function completePendingUpiPayment(){
+  var pendingRaw=localStorage.getItem('VYBERA_PENDING_UPI_BOOKING')||localStorage.getItem('VYBERA_PENDING_PAYU_BOOKING');
+  var pending=null;
+  try{ pending=pendingRaw?JSON.parse(pendingRaw):null; }catch(err){ pending=null; }
+  if(!pending){showToast('No pending UPI payment found');return;}
+  var ok=confirm('Have you completed the UPI payment to '+VYBERA_PAYMENT_UPI_NAME+' ('+VYBERA_PAYMENT_UPI_ID+')?');
+  if(!ok)return;
+  if(pending.staffReferral)STAFF_REFERRAL=pending.staffReferral;
+  await loadPublishedEvents();
+  CURRENT_EVENT=(STORE.events||[]).find(function(e){return e.id===pending.eventId;})||CURRENT_EVENT;
+  if(CURRENT_EVENT){
+    populateBookingTickets(CURRENT_EVENT);
+    var target=[].slice.call(document.querySelectorAll('.ticket-option')).find(function(el){return el.getAttribute('data-name')===pending.ticketType;});
+    if(target) selTicket(target);
+  }
+  qty=parseInt(pending.qty||1,10)||1;
+  updateOrderSummary();
+  await showSuccess({
+    gateway:'UPI',
+    status:'Success',
+    verified:false,
+    upiId:VYBERA_PAYMENT_UPI_ID,
+    payee:VYBERA_PAYMENT_UPI_NAME,
+    amount:(pending.totals&&pending.totals.total)||0
+  },pending);
+  localStorage.removeItem('VYBERA_PENDING_UPI_BOOKING');
+  localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
+  pageHistory=['page-success'];
+  if(history&&history.replaceState&&CURRENT_BOOKING){
+    history.replaceState({vyberaPage:'page-success'},'','?payment=upi&booking='+encodeURIComponent(CURRENT_BOOKING.id)+'#page-success');
+  }
+}
+
 async function payWithPayU(){
+  var pendingUpi=localStorage.getItem('VYBERA_PENDING_UPI_BOOKING');
+  if(pendingUpi){return completePendingUpiPayment();}
   if(!CURRENT_EVENT){ showToast('Select an event first'); return; }
   var selected=document.querySelector('.ticket-option.selected');
   var tierName=selected?selected.getAttribute('data-name'):(CURRENT_EVENT.tickets[0]||{}).name||'General';
@@ -3511,31 +3637,20 @@ async function payWithPayU(){
     buyer:buyer,
     staffReferral:STAFF_REFERRAL
   };
+  pending.upiId=VYBERA_PAYMENT_UPI_ID;
+  pending.upiName=VYBERA_PAYMENT_UPI_NAME;
   localStorage.setItem('VYBERA_PENDING_PAYU_BOOKING', JSON.stringify(pending));
+  localStorage.setItem('VYBERA_PENDING_UPI_BOOKING', JSON.stringify(pending));
   var btn=document.getElementById('payNowBtn');
-  if(btn){ btn.disabled=true; btn.textContent='Redirecting to PayU...'; }
+  if(btn){ btn.disabled=true; btn.textContent='Opening UPI app...'; }
   try{
-    var resp=await fetch(apiUrl('/payments/payu/initiate'), {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        txnid:bookingId,
-        bookingId:bookingId,
-        eventId:CURRENT_EVENT.id,
-        ticketType:tierName,
-        qty:totals.qty,
-        amount:totals.total,
-        productinfo:'VYBERA - '+(CURRENT_EVENT.name||'Event Booking'),
-        firstname:buyer.name,
-        email:buyer.email,
-        phone:buyer.phone
-      })
-    });
-    var data=await resp.json();
-    if(!resp.ok) throw new Error(data.error||'PayU initiation failed');
-    submitPayUForm(data.action, data.fields);
+    openUpiPaymentUrl(makeUpiPaymentUrl(pending));
+    setTimeout(function(){
+      setUpiCompletionButton();
+      showToast('After payment, return here and tap "I have paid - Show QR"');
+    },900);
   }catch(err){
-    if(btn){ btn.disabled=false; btn.textContent='🔒 Pay with PayU — ₹'+totals.total.toLocaleString('en-IN'); }
+    if(btn){ btn.disabled=false; btn.textContent='Pay with UPI — ₹'+totals.total.toLocaleString('en-IN'); }
     showToast(err.message||'Payment could not start');
   }
 }
@@ -4026,6 +4141,35 @@ async function completePayUReturn(){
   if(location.search.indexOf('payment=payu')>=0 && history.replaceState){
     history.replaceState({vyberaPage:'page-success'},'','?payment=payu&booking='+encodeURIComponent((CURRENT_BOOKING&&CURRENT_BOOKING.id)||result.bookingId||'')+'#page-success');
   }
+}
+
+async function completeUpiReturnFromUrl(){
+  var params=new URLSearchParams(location.search);
+  if(params.get('payment')!=='upi')return;
+  var bookingId=params.get('booking')||'';
+  if(!bookingId)return;
+  try{
+    await loadTicket(bookingId);
+    renderSuccessBooking(CURRENT_BOOKING);
+    showPage('page-success');
+    confetti();
+    pageHistory=['page-success'];
+    if(history&&history.replaceState)history.replaceState({vyberaPage:'page-success'},'','?payment=upi&booking='+encodeURIComponent(bookingId)+'#page-success');
+  }catch(err){
+    console.error('Could not restore UPI booking from return URL:',err);
+  }
+}
+
+function restorePendingUpiPaymentButton(){
+  var pendingRaw=localStorage.getItem('VYBERA_PENDING_UPI_BOOKING');
+  if(!pendingRaw)return;
+  try{
+    var pending=JSON.parse(pendingRaw);
+    if(pending&&pending.eventId){
+      showToast('Pending UPI payment found. Tap "I have paid - Show QR" after payment.');
+      setUpiCompletionButton();
+    }
+  }catch(err){}
 }
 
 // ── BUYER HOME REFRESH ──
@@ -6262,9 +6406,6 @@ async function applySocialLogin(user,options){
     if(!resp.ok)throw new Error(data.error||'Google login failed');
     localStorage.setItem('VYBERA_BUYER_TOKEN',data.token||'');
     applyBuyerProfile(data.user||{username:name,email:email,profileImage:user.photoURL||''});
-    await loadBuyerBookingHistory();
-    await loadProfileCreatorEvents();
-    renderProfileCreatorEvents();
     safeSessionRemove('VYBERA_GOOGLE_PENDING');
     showToast('Signed in with Google');
     var url=new URL(window.location.href);
@@ -6272,6 +6413,9 @@ async function applySocialLogin(user,options){
       url.searchParams.delete('google');
       window.history.replaceState(null,'',url.pathname+url.search+url.hash);
     }
+    Promise.all([loadBuyerBookingHistory(),loadProfileCreatorEvents()])
+      .then(function(){renderProfileCreatorEvents();})
+      .catch(function(syncErr){console.error('Google post-login sync failed:',syncErr);});
     if(continueAfterBuyerAuth())return;
     navigateBuyerHome();
   }catch(err){
@@ -6281,6 +6425,8 @@ async function applySocialLogin(user,options){
   }
 }
 window.applySocialLogin=applySocialLogin;
+window.vyberaAppAuthReady=true;
+window.dispatchEvent(new Event('vybera-app-auth-ready'));
 
 async function localGoogleSignInFallback(){
   safeSessionRemove('VYBERA_GUEST_MODE');
@@ -6390,6 +6536,8 @@ if(safeSessionGet('VYBERA_GOOGLE_PENDING')==='1'){
   showToast('Completing Google sign-in...');
 }
 setTimeout(completePayUReturn, 100);
+setTimeout(completeUpiReturnFromUrl, 120);
+setTimeout(restorePendingUpiPaymentButton, 250);
 setTimeout(loadPublishedEvents, 150);
 setTimeout(restoreSavedSession,180);
 setTimeout(enableVyberaLogoNavigation,0);

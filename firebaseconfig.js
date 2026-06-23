@@ -85,6 +85,37 @@ function waitForInitialAuthUser() {
   });
 }
 
+function waitForAppLogin() {
+  if (typeof window.applySocialLogin === "function") {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+    let poller = null;
+    const cleanup = () => {
+      window.removeEventListener("vybera-app-auth-ready", finish);
+      clearTimeout(timer);
+      clearInterval(poller);
+    };
+    const finish = () => {
+      if (settled || typeof window.applySocialLogin !== "function") return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("App login is still loading. Please try again."));
+    }, 6000);
+    poller = setInterval(finish, 50);
+    window.addEventListener("vybera-app-auth-ready", finish, { once: true });
+    finish();
+  });
+}
+
 async function finishGoogleUser(user) {
   if (!user || googleSessionApplied) return;
   const displayName = user.displayName || "Google User";
@@ -92,12 +123,7 @@ async function finishGoogleUser(user) {
   if (!email) {
     throw new Error("Google account did not return an email address.");
   }
-  for (let i = 0; i < 120 && typeof window.applySocialLogin !== "function"; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  if (typeof window.applySocialLogin !== "function") {
-    throw new Error("App login is still loading. Please try again.");
-  }
+  await waitForAppLogin();
   await window.applySocialLogin({
     name: displayName,
     email,

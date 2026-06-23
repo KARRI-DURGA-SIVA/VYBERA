@@ -25,6 +25,7 @@
     <allow-intent href="https://accounts.google.com/*" />
     <allow-intent href="https://*.google.com/*" />
     <allow-intent href="https://*.gstatic.com/*" />
+    <allow-intent href="upi://*/*" />
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
 </widget>
