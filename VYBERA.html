@@ -6902,21 +6902,31 @@ function admRenderBuyers(){
 
 var admCreatorsList = [];
 
+function admEscapeHtml(value){
+  return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
 function admRenderCreators(){
   var tbody = document.getElementById('creatorsBody');
   if(!tbody) return;
   tbody.innerHTML = admCreatorsList.map(function(c,i){
-    var bc = c.status==='Verified'?'green':c.status==='Pending'?'yellow':'red';
+    var verified = c.status==='Verified'||c.status==='Approved';
+    var pending = c.status==='Pending';
+    var bc = verified?'green':pending?'yellow':'red';
+    var statusLabel = c.status==='Approved'?'Verified':c.status;
+    var docsCount = (c.documents||[]).length;
     return '<tr><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
-      +'<td><div style="font-weight:600;color:var(--adm-text);">'+c.name+'</div><div style="font-size:10px;color:var(--adm-text2);">'+c.email+'</div></td>'
-      +'<td><span class="adm-badge blue">'+(c.category||'—')+'</span></td>'
+      +'<td onclick="admOpenCreatorReview(\''+c.id+'\')" style="cursor:pointer;"><div style="font-weight:600;color:var(--adm-text);">'+admEscapeHtml(c.name)+'</div><div style="font-size:10px;color:var(--adm-text2);">'+admEscapeHtml(c.email)+'</div><div style="font-size:10px;color:#00D4D4;margin-top:2px;">Review '+docsCount+' document'+(docsCount===1?'':'s')+'</div></td>'
+      +'<td><span class="adm-badge blue">'+admEscapeHtml(c.category||'—')+'</span></td>'
       +'<td>'+c.events+'</td>'
       +'<td style="font-size:11px;">₹'+c.revenue.toLocaleString('en-IN')+'</td>'
       +'<td><span style="font-size:12px;font-weight:600;color:var(--adm-text);">'+c.fee+'%</span></td>'
-      +'<td><span class="adm-badge '+bc+'">'+c.status+'</span></td>'
+      +'<td><span class="adm-badge '+bc+'">'+statusLabel+'</span></td>'
       +'<td><div style="display:flex;gap:4px;">'
-      +(c.status==='Pending'
-        ? '<button onclick="admVerifyCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Verify</button>'
+      +(pending
+        ? '<button onclick="admOpenCreatorReview(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Review</button>'
         : '<button onclick="admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
       +'<button onclick="admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>'
       +'</div></td></tr>';
@@ -6932,13 +6942,62 @@ function admReinstateUser(id){
   if(u){ u.status='Active'; admRenderBuyers(); admShowToast('User reinstated: '+u.name); STORE.addAdminLog('Reinstate User',u.name); }
 }
 function admNotifyUser(name){ admShowToast('Notification sent to: '+name); STORE.addAdminLog('Notify User',name); }
-function admVerifyCreator(id){
+function admOpenCreatorReview(id){
   var c = admCreatorsList.find(function(x){return x.id===id;});
-  if(c){ c.status='Verified'; admRenderCreators(); admShowToast('✅ Creator verified: '+c.name); STORE.addAdminLog('Verify Creator',c.name); }
+  if(!c) return;
+  var existing=document.getElementById('creatorReviewModal');
+  if(existing) existing.remove();
+  var docs=c.documents||[];
+  var statusLabel=c.status==='Approved'?'Verified':c.status;
+  var docHtml=docs.length?docs.map(function(doc){
+    var type=String(doc.documentType||'document').replace(/^\w/,function(ch){return ch.toUpperCase();});
+    var url=doc.url||'';
+    return '<div style="padding:12px;border:1px solid var(--adm-border);border-radius:10px;background:var(--adm-input-bg);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">'
+      +'<div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--adm-text);">'+admEscapeHtml(type)+'</div><div style="font-size:11px;color:var(--adm-text2);word-break:break-word;">'+admEscapeHtml(doc.fileName||'Uploaded document')+'</div></div>'
+      +(url?'<a class="adm-btn adm-btn-sm adm-btn-ghost" href="'+admEscapeHtml(url)+'" target="_blank" rel="noopener">Open</a>':'<span style="font-size:10px;color:var(--adm-text2);">No link</span>')
+      +'</div>';
+  }).join(''):'<div style="padding:14px;border:1px solid var(--adm-border);border-radius:10px;color:var(--adm-text2);font-size:12px;">No KYC documents found for this creator.</div>';
+  var modal=document.createElement('div');
+  modal.id='creatorReviewModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;';
+  modal.innerHTML='<div style="width:100%;max-width:520px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:14px;padding:18px;box-shadow:0 18px 70px rgba(0,0,0,.65);font-family:\'DM Sans\',sans-serif;max-height:86vh;overflow-y:auto;">'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;"><div><div style="font-size:16px;font-weight:800;color:var(--adm-text);">Creator Review</div><div style="font-size:12px;color:var(--adm-text2);">'+admEscapeHtml(c.name)+' · '+admEscapeHtml(c.email)+'</div></div><button data-cancel="1" class="adm-btn adm-btn-sm adm-btn-ghost">Close</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;"><div style="padding:10px;border:1px solid var(--adm-border);border-radius:10px;"><div style="font-size:10px;color:var(--adm-text2);">Category</div><div style="font-size:12px;color:var(--adm-text);font-weight:700;">'+admEscapeHtml(c.category||'-')+'</div></div><div style="padding:10px;border:1px solid var(--adm-border);border-radius:10px;"><div style="font-size:10px;color:var(--adm-text2);">Status</div><div style="font-size:12px;color:var(--adm-text);font-weight:700;">'+admEscapeHtml(statusLabel)+'</div></div></div>'
+    +'<div style="font-size:12px;font-weight:800;color:var(--adm-text);margin-bottom:8px;">Submitted Documents</div>'
+    +docHtml
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
+    +(c.status==='Pending'?'<button data-verify="1" class="adm-btn adm-btn-teal">Verify Creator</button>':'')
+    +'</div></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click',function(e){
+    if(e.target===modal||e.target.closest('[data-cancel]')) modal.remove();
+    if(e.target.closest('[data-verify]')) admVerifyCreator(id);
+  });
+}
+async function admVerifyCreator(id){
+  var c = admCreatorsList.find(function(x){return x.id===id;});
+  if(!c) return;
+  try{
+    var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+    var resp=await fetch(apiUrl('/admin/creators/'+encodeURIComponent(id)+'/status'),{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({status:'Approved'})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok) throw new Error(data.error||'Could not verify creator');
+    c.status='Approved';
+    admRenderCreators();
+    var modal=document.getElementById('creatorReviewModal'); if(modal) modal.remove();
+    admShowToast('✅ Creator verified: '+c.name);
+    STORE.addAdminLog('Verify Creator',c.name);
+  }catch(err){
+    admShowToast(err.message||'Could not verify creator');
+  }
 }
 function admVerifyAllCreators(){
-  admCreatorsList.forEach(function(c){ if(c.status==='Pending') c.status='Verified'; });
-  admRenderCreators(); admShowToast('✅ All creators verified'); STORE.addAdminLog('Bulk Verify','All pending creators verified');
+  Promise.all(admCreatorsList.filter(function(c){return c.status==='Pending';}).map(function(c){return admVerifyCreator(c.id);}))
+    .then(function(){admShowToast('✅ All pending creators verified'); STORE.addAdminLog('Bulk Verify','All pending creators verified');});
 }
 function admAdjustFee(id){
   var c = admCreatorsList.find(function(x){return x.id===id;});
@@ -9799,17 +9858,50 @@ VyberaEventBus.on('creator_application', function(data){
 });
 
 // ── Admin: Verify creator application ──
-function admVerifyCreatorApp(idx){
+async function admVerifyCreatorApp(idx){
   var apps = STORE.creatorApplications||[];
   var app = apps[idx];
   if(!app) return;
-  app.status = 'Approved';
-  app.verifiedAt = new Date().toISOString();
-  admShowToast('Creator approved: '+app.name);
-  STORE.addAdminLog('Approve Creator KYC', app.name+' — '+app.category);
-  vyberaActivity.log('Creator approved: '+app.name);
-  VyberaEventBus.emit('creator_update', {type:'kyc_approved', name:app.name, email:app.email});
-  admRefreshVerificationQueue();
+  try{
+    var creator=(admCreatorsList||[]).find(function(c){
+      return String(c.email||'').toLowerCase()===String(app.email||'').toLowerCase();
+    });
+    if(creator){
+      await admVerifyCreator(creator.id);
+    }else{
+      var token=localStorage.getItem('VYBERA_ADMIN_TOKEN')||'';
+      var resp=await fetch(apiUrl('/admin/creators/status-by-email'),{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+        body:JSON.stringify({email:app.email,status:'Approved'})
+      });
+      var data=await readAuthResponse(resp);
+      if(!resp.ok) throw new Error(data.error||'Could not approve creator');
+      var approved=data.creator||{};
+      admCreatorsList.push({
+        id:'CRT-'+approved.id,
+        creatorId:approved.id,
+        name:approved.name,
+        email:approved.email,
+        category:approved.category,
+        status:'Approved',
+        events:0,
+        revenue:0,
+        fee:8,
+        documents:[]
+      });
+      if(typeof admRenderCreators==='function') admRenderCreators();
+    }
+    app.status = 'Approved';
+    app.verifiedAt = new Date().toISOString();
+    admShowToast('Creator approved: '+app.name);
+    STORE.addAdminLog('Approve Creator KYC', app.name+' — '+app.category);
+    vyberaActivity.log('Creator approved: '+app.name);
+    VyberaEventBus.emit('creator_update', {type:'kyc_approved', name:app.name, email:app.email});
+    admRefreshVerificationQueue();
+  }catch(err){
+    admShowToast(err.message||'Could not approve creator');
+  }
 }
 
 function admRejectCreatorApp(idx){
