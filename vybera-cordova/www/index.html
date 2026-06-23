@@ -8,7 +8,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=DM+Sans:wght@300;400;500;600;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#000000;--bg2:#0D0D0D;--bg3:#161616;--red:#8B2010;--red-dim:rgba(139,32,16,0.15);--purple:#8B2010;--neon:#00D4D4;--white:#fff;--grey:#B3B3B3;--muted:#555;--glass:rgba(255,255,255,0.04);--glass-border:rgba(255,255,255,0.07);--radius:16px;--brick:#8B2010;--teal:#00D4D4;}
+:root{
+  --bg: #ffffff;           /* Changed from #000000 */
+  --bg2: #f8f8f8;          /* Changed from #0D0D0D */
+  --bg3: #f0f0f0;          /* Changed from #161616 */
+  --red: #8B2010;
+  --red-dim: rgba(139,32,16,0.15);
+  --purple: #8B2010;
+  --neon: #00D4D4;
+  --white: #111111;        /* Changed text color for readability */
+  --grey: #666666;         /* Changed from #B3B3B3 */
+  --muted: #999999;        /* Changed from #555 */
+  --glass: rgb(255, 255, 255);
+  --glass-border: rgba(255, 254, 254, 0.964);
+  --radius: 16px;
+  --brick: #8B2010;
+  --teal: #8B2010;
+}
 *{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
 body{background:var(--bg);color:var(--white);font-family:"DM Sans",sans-serif;overflow-x:hidden;min-height:100vh;}
 body.session-restoring .page,body.session-restoring .sub-page{display:none!important;}
