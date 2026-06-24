@@ -18,6 +18,7 @@ const firebaseConfig = {
   storageBucket: "vybera.firebasestorage.app",
   messagingSenderId: "544899681732",
   appId: "1:544899681732:web:72950958f1ac6b83356891",
+  oauthClientId: "544899681732-.apps.googleusercontent.com",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -33,6 +34,14 @@ googleProvider.setCustomParameters({
 function isCordovaWebView() {
   const ua = navigator.userAgent || "";
   return !!window.cordova || window.location.protocol === "file:" || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
+}
+
+function hasCordovaFirebaseAuth() {
+  return typeof cordova !== 'undefined' && 
+         cordova.plugins && 
+         cordova.plugins.firebase && 
+         cordova.plugins.firebase.auth &&
+         typeof cordova.plugins.firebase.auth.signInWithGoogle === 'function';
 }
 
 function normalizeLocalAuthOrigin() {
@@ -165,13 +174,102 @@ window.vyberaFirebaseCompleteGoogleReturn = async function vyberaFirebaseComplet
   return signInWithRedirect(auth, googleProvider);
 };
 
+async function signInWithGoogleInApp() {
+  return new Promise((resolve, reject) => {
+    let closedByApp = false;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${firebaseConfig.oauthClientId}&` +
+      `redirect_uri=${encodeURIComponent(window.location.href.split('#')[0])}&` +
+      `response_type=token&` +
+      `scope=email%20profile&` +
+      `prompt=select_account`;
+    
+    const inAppBrowserRef = cordova.InAppBrowser.open(authUrl, '_blank', 'location=yes,clearcache=yes,clearsessioncache=yes');
+    
+    inAppBrowserRef.addEventListener('loadstart', function(event) {
+      const url = event.url;
+      if (url.includes(window.location.href.split('#')[0])) {
+        closedByApp = true;
+        inAppBrowserRef.close();
+        
+        const urlParams = new URLSearchParams(url.split('#')[1]);
+        const accessToken = urlParams.get('access_token');
+        
+        if (accessToken) {
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          })
+          .then(response => response.json())
+          .then(user => {
+            const mappedUser = {
+              displayName: user.name,
+              email: user.email,
+              photoURL: user.picture
+            };
+            finishGoogleUser(mappedUser).then(() => resolve(true)).catch(reject);
+          })
+          .catch(reject);
+        } else {
+          reject(new Error('Failed to get access token'));
+        }
+      }
+    });
+    
+    inAppBrowserRef.addEventListener('exit', function() {
+      if (!googleSessionApplied && !closedByApp) {
+        clearGooglePending();
+        reject(new Error('Google sign-in was cancelled'));
+      }
+    });
+    
+    inAppBrowserRef.addEventListener('loaderror', function(event) {
+      inAppBrowserRef.close();
+      clearGooglePending();
+      reject(new Error('Failed to load Google sign-in page'));
+    });
+  });
+}
+
 window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() {
   try {
     if (isCordovaWebView()) {
-      if (typeof window.openGoogleInSystemBrowser === "function") {
-        return window.openGoogleInSystemBrowser();
+      markGooglePending();
+      
+      if (hasCordovaFirebaseAuth()) {
+        cordova.plugins.firebase.auth.signInWithGoogle().then(function(user) {
+          return finishGoogleUser({
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL
+          });
+        }).catch(function(err) {
+          console.error('Cordova Firebase auth failed:', err);
+          clearGooglePending();
+          alert('Google sign-in failed: ' + (err.message || 'Unknown error'));
+        });
+        return;
       }
-      alert("Google login is loading. Please try again in a moment.");
+      
+      if (typeof cordova !== 'undefined' && cordova.InAppBrowser) {
+        try {
+          await signInWithGoogleInApp();
+          return;
+        } catch (err) {
+          console.error('In-app Google sign-in failed:', err);
+          clearGooglePending();
+          if (typeof window.openGoogleInSystemBrowser === 'function') {
+            const message = 'In-app sign-in encountered an issue. Would you like to open your phone browser instead?';
+            if (confirm(message)) {
+              return window.openGoogleInSystemBrowser();
+            }
+          }
+          alert('Google sign-in failed: ' + (err.message || 'Please try again'));
+          return;
+        }
+      }
+      
+      alert('Google login is not available in this app version.');
+      clearGooglePending();
       return;
     }
     if (normalizeLocalAuthOrigin()) return;

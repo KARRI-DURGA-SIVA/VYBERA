@@ -37,11 +37,12 @@ body.guest-mode #profileCreatedEventsItem{display:none !important;}
 .btn-red{background:var(--red);color:#fff;border:none;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;font-family:"DM Sans",sans-serif;transition:all .2s;}
 .btn-red:hover{background:#ff0f1e;}
 .btn-ghost{background:var(--glass);border:1px solid var(--glass-border);color:var(--white);padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all .2s;}
-.back-btn{width:36px;height:50px;background:var(--bg2);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--glass-border);flex-shrink:0;}
+.back-btn{width:40px;height:40px;background:rgba(10,10,10,0.98);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid rgba(255,255,255,0.25);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
 .sub-header .back-btn img{display:none!important;}
-.back-btn svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;}
-.icon-btn{background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
-.icon-btn svg{width:18px;height:18px;stroke:var(--grey);fill:none;stroke-width:1.8;}
+.back-btn svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:2.5;}
+.icon-btn{background:rgba(10,10,10,0.8);border:1px solid rgba(255,255,255,0.15);border-radius:12px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.icon-btn svg{width:20px;height:20px;stroke:var(--grey);fill:none;stroke-width:2;}
+.icon-btn:hover svg{stroke:#fff;}
 .tag-pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--glass);border:1px solid var(--glass-border);color:var(--grey);letter-spacing:.5px;text-transform:uppercase;}
 .sec-header{display:flex;justify-content:space-between;align-items:center;padding:0 16px;margin-bottom:12px;}
 .sec-title{font-size:17px;font-weight:700;}
@@ -62,9 +63,10 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .toggle.on{background:var(--red);}
 .toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;}
 .toggle.on::after{transform:translateX(20px);}
-.page-topbar{padding:18px 16px 14px;display:flex;align-items:center;justify-content:space-between;}
+.page-topbar{padding:18px 16px 14px;display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-bottom:1px solid rgba(255,255,255,0.05);}
+#page-profile .page-topbar{background:#000;}
 .page-topbar-title{font-family:"Bebas Neue",sans-serif;font-size:28px;letter-spacing:2px;}
-.sub-header{padding:18px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--glass-border);}
+.sub-header{padding:18px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--glass-border);background:var(--bg);}
 .sub-title{font-size:18px;font-weight:700;}
 .section-tabs{display:flex;background:var(--bg2);border-radius:12px;padding:4px;margin-bottom:20px;}
 .tab-btn{flex:1;padding:8px;border-radius:9px;border:none;background:none;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all .2s;}
@@ -121,11 +123,11 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .explore-card-body{padding:12px;}
 .explore-card-title{font-size:14px;font-weight:600;margin-bottom:4px;line-height:1.3;}
 .explore-card-meta{font-size:12px;color:var(--grey);}
-#page-detail{padding:0 0 120px;}
+#page-detail{padding:0 0 140px;}
 .detail-hero{height:340px;background-size:cover;background-position:center;position:relative;}
 .detail-hero-grad{position:absolute;inset:0;background:linear-gradient(0deg,#0A0A0A 0%,rgba(10,10,10,.4) 60%,transparent 100%);}
-.detail-back{position:absolute;top:20px;left:16px;width:40px;height:40px;background:rgba(10,10,10,.7);backdrop-filter:blur(10px);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--glass-border);}
-.detail-back svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;}
+.detail-back{position:absolute;top:20px;left:16px;width:44px;height:44px;background:rgba(5,5,5,0.95);backdrop-filter:blur(12px);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid rgba(255,255,255,0.3);box-shadow:0 6px 16px rgba(0,0,0,0.5);}
+.detail-back svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:2.5;}
 .detail-logo-center{position:absolute;top:20px;left:50%;transform:translateX(-50%);}
 .detail-actions-top{position:absolute;top:20px;right:16px;display:flex;gap:8px;}
 .detail-body{padding:0 16px;margin-top:16px;}
@@ -148,11 +150,11 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .exp-section.open .exp-chevron{transform:rotate(180deg);}
 .exp-body{display:none;padding:0 16px 16px;color:var(--grey);font-size:13px;line-height:1.7;}
 .exp-section.open .exp-body{display:block;}
-.sticky-cta{position:fixed;bottom:90px;left:0;right:0;padding:12px 16px;background:linear-gradient(0deg,#0A0A0A 60%,transparent);display:none;}
+.sticky-cta{position:fixed;bottom:90px;left:0;right:0;padding:16px 20px;background:linear-gradient(0deg,#0A0A0A 80%,transparent);display:none;z-index:100;}
 .sticky-cta.visible{display:block;}
 .sticky-cta-inner{background:var(--red);border-radius:16px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
 #page-booking{padding:0 0 110px;}
-.booking-header{padding:18px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--glass-border);}
+.booking-header{padding:18px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--glass-border);background:var(--bg);}
 .step-indicator{display:flex;padding:20px 16px;}
 .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;}
 .step:not(:last-child)::after{content:"";position:absolute;top:14px;left:50%;right:-50%;height:2px;background:var(--bg3);z-index:0;}
@@ -168,20 +170,20 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .ticket-option.sold-out{opacity:.45;cursor:not-allowed;}
 .ticket-option-name{font-size:15px;font-weight:700;margin-bottom:4px;}
 .ticket-option-perks{font-size:12px;color:var(--grey);line-height:1.5;}
-.ticket-price{font-family:"Space Mono",monospace;font-size:18px;font-weight:700;color:var(--neon);}
+.ticket-price{font-family:"Space Mono",monospace;font-size:18px;font-weight:700;color:var(--neon);line-height:1.4;padding:4px 0;}
 .ticket-avail{font-size:11px;color:var(--grey);margin-top:2px;}
-.qty-row{display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--bg2);border-radius:14px;margin-bottom:12px;}
+.qty-row{display:flex;align-items:center;justify-content:space-between;padding:18px 16px;background:var(--bg2);border-radius:14px;margin-bottom:12px;}
 .qty-control{display:flex;align-items:center;gap:16px;}
-.qty-btn{width:36px;height:50px;border-radius:50%;background:var(--bg3);border:1px solid var(--glass-border);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
-.qty-btn:hover{background:var(--red);}
-.qty-num{font-size:20px;font-weight:700;font-family:"Space Mono",monospace;min-width:28px;text-align:center;}
+.qty-btn{width:42px;height:42px;border-radius:50%;background:var(--red);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(139,32,16,0.3);}
+.qty-btn:hover{background:#ff0f1e;transform:scale(1.05);}
+.qty-num{font-size:22px;font-weight:700;font-family:"Space Mono",monospace;min-width:32px;text-align:center;line-height:1.2;}
 .coupon-row{display:flex;gap:8px;margin-bottom:20px;}
 .coupon-input{flex:1;background:var(--bg2);border:1px solid var(--glass-border);border-radius:12px;padding:12px 16px;color:#fff;font-size:14px;font-family:"DM Sans",sans-serif;outline:none;}
 .coupon-input::placeholder{color:var(--muted);}
 .apply-btn{background:var(--red-dim);border:1px solid var(--red);color:var(--red);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;}
-.order-summary{background:var(--bg2);border-radius:16px;padding:16px;margin-bottom:20px;}
-.order-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--glass-border);font-size:13px;color:var(--grey);}
-.order-row:last-child{border:none;font-size:16px;font-weight:700;color:#fff;}
+.order-summary{background:var(--bg2);border-radius:16px;padding:18px;margin-bottom:20px;}
+.order-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--glass-border);font-size:13px;color:var(--grey);line-height:1.4;}
+.order-row:last-child{border:none;font-size:16px;font-weight:700;color:#fff;padding-top:12px;}
 .pay-option{background:var(--bg2);border:2px solid var(--glass-border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .2s;margin-bottom:8px;}
 .pay-option.selected{border-color:var(--red);}
 .pay-icon{width:36px;height:50px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:18px;}
@@ -198,25 +200,26 @@ textarea.form-input{resize:vertical;min-height:100px;}
 @keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
 @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
 #page-ticket{padding:16px 16px 110px;}
-.ticket-card{background:linear-gradient(135deg,#1C1C1C,#141414);border-radius:24px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 24px 60px rgba(0,0,0,.5);}
+.ticket-card{background:linear-gradient(135deg,#1C1C1C,#141414);border-radius:24px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 24px 60px rgba(0,0,0,.5);margin:0 16px;}
 .ticket-banner{height:180px;background-size:cover;background-position:center;position:relative;}
 .ticket-banner-grad{position:absolute;inset:0;background:linear-gradient(0deg,#1C1C1C 0%,transparent 60%);}
-.ticket-body{padding:20px;}
-.ticket-event-name{font-family:"Bebas Neue",sans-serif;font-size:32px;letter-spacing:2px;margin-bottom:4px;}
-.ticket-date-venue{font-size:13px;color:var(--grey);margin-bottom:16px;}
-.ticket-divider{position:relative;margin:16px -20px;height:2px;}
+.ticket-body{padding:24px;}
+.ticket-event-name{font-family:"Bebas Neue",sans-serif;font-size:32px;letter-spacing:2px;margin-bottom:6px;line-height:1.2;}
+.ticket-date-venue{font-size:13px;color:var(--grey);margin-bottom:18px;line-height:1.4;}
+.ticket-divider{position:relative;margin:20px -24px;height:2px;}
 .ticket-divider::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--glass-border) 0,var(--glass-border) 8px,transparent 8px,transparent 16px);}
-.ticket-holder{display:flex;justify-content:space-between;margin-bottom:12px;}
-.t-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;}
-.t-value{font-size:14px;font-weight:600;}
-.qr-wrap{display:flex;flex-direction:column;align-items:center;margin:16px 0;}
-.qr-ring{width:160px;height:160px;border-radius:20px;background:white;padding:12px;position:relative;}
-.qr-ring::before{content:"";position:absolute;inset:-4px;border-radius:24px;background:conic-gradient(var(--red),var(--purple),var(--neon),var(--red));z-index:-1;animation:spin 3s linear infinite;}
+.ticket-holder{display:flex;justify-content:space-between;margin-bottom:14px;}
+.t-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.t-value{font-size:14px;font-weight:600;line-height:1.3;}
+.qr-wrap{display:flex;flex-direction:column;align-items:center;margin:20px 0;padding:16px;}
+.qr-ring{width:180px;height:180px;border-radius:20px;background:white;padding:16px;position:relative;box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+.qr-ring::before{content:"";position:absolute;inset:-6px;border-radius:26px;background:conic-gradient(var(--red),var(--purple),var(--neon),var(--red));z-index:-1;animation:spin 3s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.qr-inner{width:100%;height:100%;background:white;border-radius:12px;display:flex;align-items:center;justify-content:center;}
-.qr-id{font-family:"Space Mono",monospace;font-size:11px;color:var(--muted);margin-top:12px;letter-spacing:1px;}
-.ticket-actions{display:flex;gap:10px;margin-top:20px;}
-.t-action-btn{flex:1;padding:12px;border-radius:12px;border:1px solid var(--glass-border);background:var(--glass);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;}
+.qr-inner{width:100%;height:100%;background:white;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.qr-id{font-family:"Space Mono",monospace;font-size:12px;color:var(--muted);margin-top:16px;letter-spacing:1px;text-align:center;padding:0 8px;word-break:break-all;}
+.ticket-actions{display:flex;gap:10px;margin-top:24px;}
+.t-action-btn{flex:1;padding:14px;border-radius:12px;border:1px solid var(--glass-border);background:var(--glass);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .2s;}
+.t-action-btn:hover{background:var(--bg3);border-color:rgba(255,255,255,0.2);}
 #page-mytickets{padding:0 0 110px;}
 .tl-card{background:var(--bg2);border-radius:16px;overflow:hidden;margin:0 16px 12px;border:1px solid var(--glass-border);cursor:pointer;}
 .tl-img{height:110px;background-size:cover;background-position:center;position:relative;}
@@ -341,7 +344,7 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .tier-card{background:var(--bg2);border:1px solid var(--glass-border);border-radius:14px;padding:14px;margin-bottom:10px;}
 .tier-header{display:flex;justify-content:space-between;margin-bottom:8px;}
 .tier-name{font-size:15px;font-weight:700;}
-.tier-price{font-family:"Space Mono",monospace;font-size:14px;color:var(--neon);}
+.tier-price{font-family:"Space Mono",monospace;font-size:14px;color:var(--neon);line-height:1.4;padding:2px 0;}
 .tier-details{display:flex;gap:16px;font-size:12px;color:var(--grey);}
 .add-tier-btn{width:100%;padding:12px;border:2px dashed var(--glass-border);border-radius:12px;background:none;color:var(--grey);font-size:13px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all .2s;}
 .add-tier-btn:hover{border-color:var(--red);color:var(--red);}
@@ -2046,6 +2049,17 @@ function enableVyberaLogoNavigation(){
   });
 }
 function goBack(){
+  var activePage=document.querySelector('.page.active');
+  var activeId=activePage?activePage.id:'';
+  if(activeId==='page-booking' && bookingStep===3){
+    localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
+    bookingStep=1;
+    document.querySelectorAll('.booking-step').forEach(function(s){s.classList.remove('active');});
+    document.getElementById('bstep1').classList.add('active');
+    document.querySelectorAll('.step').forEach(function(s){s.classList.remove('active','done');});
+    document.getElementById('bstep-ind-1').classList.add('active');
+    showToast('Payment cancelled. Please complete payment to confirm booking.');
+  }
   if(pageHistory.length>1){
     pageHistory.pop();
     var prev=pageHistory[pageHistory.length-1];
@@ -6236,7 +6250,7 @@ function isBlockedGoogleWebView(){
 function openGoogleInSystemBrowser(){
   clearGoogleLoginPending();
   var url=location.origin+location.pathname+'?google=1';
-  alert('Google blocks sign-in inside this app screen. VYBERA will open your phone browser for Google sign-in. For in-app login, use email and password.');
+  alert('Google sign-in requires opening your phone browser for security. VYBERA will now open the browser for you to complete sign-in. After signing in, you will return to the app.');
   if(window.cordova && window.cordova.InAppBrowser){
     window.cordova.InAppBrowser.open(url,'_system','location=yes');
     return true;

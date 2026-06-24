@@ -56,7 +56,7 @@ body.guest-mode #profileCreatedEventsItem{display:none !important;}
 .btn-ghost{background:var(--glass);border:1px solid var(--glass-border);color:var(--white);padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all .2s;}
 .back-btn{width:36px;height:50px;background:var(--bg2);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--glass-border);flex-shrink:0;}
 .sub-header .back-btn img{display:none!important;}
-.back-btn svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;}
+.back-btn svg{width:18px;height:18px;stroke:var(--white);fill:none;stroke-width:2;}
 .icon-btn{background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
 .icon-btn svg{width:18px;height:18px;stroke:var(--grey);fill:none;stroke-width:1.8;}
 .tag-pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--glass);border:1px solid var(--glass-border);color:var(--grey);letter-spacing:.5px;text-transform:uppercase;}
@@ -165,9 +165,9 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .exp-section.open .exp-chevron{transform:rotate(180deg);}
 .exp-body{display:none;padding:0 16px 16px;color:var(--grey);font-size:13px;line-height:1.7;}
 .exp-section.open .exp-body{display:block;}
-.sticky-cta{position:fixed;bottom:90px;left:0;right:0;padding:12px 16px;background:linear-gradient(0deg,#0A0A0A 60%,transparent);display:none;}
+.sticky-cta{position:fixed;bottom:20px;left:0;right:0;padding:12px 16px;background:linear-gradient(0deg,var(--bg) 60%,transparent);display:none;}
 .sticky-cta.visible{display:block;}
-.sticky-cta-inner{background:var(--red);border-radius:16px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+.sticky-cta-inner{background:var(--red);border-radius:16px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:0 8px 32px rgba(139,32,16,0.3);}
 #page-booking{padding:0 0 110px;}
 .booking-header{padding:18px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--glass-border);}
 .step-indicator{display:flex;padding:20px 16px;}
@@ -189,7 +189,7 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .ticket-avail{font-size:11px;color:var(--grey);margin-top:2px;}
 .qty-row{display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--bg2);border-radius:14px;margin-bottom:12px;}
 .qty-control{display:flex;align-items:center;gap:16px;}
-.qty-btn{width:36px;height:50px;border-radius:50%;background:var(--bg3);border:1px solid var(--glass-border);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
+.qty-btn{width:36px;height:50px;border-radius:50%;background:var(--bg3);border:1px solid var(--glass-border);color:var(--white);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
 .qty-btn:hover{background:var(--red);}
 .qty-num{font-size:20px;font-weight:700;font-family:"Space Mono",monospace;min-width:28px;text-align:center;}
 .coupon-row{display:flex;gap:8px;margin-bottom:20px;}
@@ -216,11 +216,16 @@ textarea.form-input{resize:vertical;min-height:100px;}
 @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
 #page-ticket{padding:16px 16px 110px;}
 .ticket-card{background:linear-gradient(135deg,#1C1C1C,#141414);border-radius:24px;overflow:hidden;border:1px solid var(--glass-border);box-shadow:0 24px 60px rgba(0,0,0,.5);}
+.ticket-card, .ticket-card * { color: #ffffff !important; }
+.ticket-card .t-label { color: #aaaaaa !important; }
+.ticket-card .qr-id { color: #bbbbbb !important; }
+.ticket-card .t-action-btn { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.2) !important; color: #ffffff !important; }
+.ticket-card .t-action-btn:hover { background: rgba(255,255,255,0.2) !important; }
 .ticket-banner{height:180px;background-size:cover;background-position:center;position:relative;}
 .ticket-banner-grad{position:absolute;inset:0;background:linear-gradient(0deg,#1C1C1C 0%,transparent 60%);}
 .ticket-body{padding:20px;}
 .ticket-event-name{font-family:"Bebas Neue",sans-serif;font-size:32px;letter-spacing:2px;margin-bottom:4px;}
-.ticket-date-venue{font-size:13px;color:var(--grey);margin-bottom:16px;}
+.ticket-date-venue{font-size:13px;color:#bbbbbb;margin-bottom:16px;}
 .ticket-divider{position:relative;margin:16px -20px;height:2px;}
 .ticket-divider::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--glass-border) 0,var(--glass-border) 8px,transparent 8px,transparent 16px);}
 .ticket-holder{display:flex;justify-content:space-between;margin-bottom:12px;}
@@ -231,9 +236,9 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .qr-ring::before{content:"";position:absolute;inset:-4px;border-radius:24px;background:conic-gradient(var(--red),var(--purple),var(--neon),var(--red));z-index:-1;animation:spin 3s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .qr-inner{width:100%;height:100%;background:white;border-radius:12px;display:flex;align-items:center;justify-content:center;}
-.qr-id{font-family:"Space Mono",monospace;font-size:11px;color:var(--muted);margin-top:12px;letter-spacing:1px;}
+.qr-id{font-family:"Space Mono",monospace;font-size:11px;color:#888888 !important;margin-top:12px;letter-spacing:1px;}
 .ticket-actions{display:flex;gap:10px;margin-top:20px;}
-.t-action-btn{flex:1;padding:12px;border-radius:12px;border:1px solid var(--glass-border);background:var(--glass);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;}
+.t-action-btn{flex:1;padding:12px;border-radius:12px;border:1px solid var(--glass-border);background:var(--glass);color:var(--white);font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;}
 #page-mytickets{padding:0 0 110px;}
 .tl-card{background:var(--bg2);border-radius:16px;overflow:hidden;margin:0 16px 12px;border:1px solid var(--glass-border);cursor:pointer;}
 .tl-img{height:110px;background-size:cover;background-position:center;position:relative;}
@@ -414,12 +419,10 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .pend-badge{background:rgba(251,191,36,.1);color:#fbbf24;}
 .form-input option,.coupon-input option,select option{background:#111;color:#fff;}
 
-body.on-splash,
 body.on-login,
 body.on-creator-login{
   background:#fff;
 }
-body.on-splash #page-splash,
 body.on-login #page-login,
 body.on-creator-login #page-creator-login{
   background:#fff!important;
@@ -429,8 +432,6 @@ body.on-login #page-login > div[style*="pointer-events:none"],
 body.on-creator-login #page-creator-login > div[style*="pointer-events:none"]{
   display:none!important;
 }
-body.on-splash #page-splash p,
-body.on-splash #page-splash div:not([style*="background:#8B2010"]),
 body.on-login #authHeroSub,
 body.on-login #page-login label,
 body.on-login #page-login p,
@@ -444,7 +445,6 @@ body.on-login #authHeroTitle,
 body.on-creator-login #page-creator-login div[style*="Bebas Neue"]{
   color:#111!important;
 }
-body.on-splash #page-splash button[onclick="quickLogin()"],
 body.on-login #page-login button:not(#tab-signin):not(#loginBtn):not(#signupBtn):not(#sendOtpBtn):not(#verifyOtpBtn),
 body.on-creator-login #page-creator-login button:not(.cta-full){
   background:#fff!important;
@@ -470,6 +470,52 @@ body.on-creator-login #creatorVerificationMsg{
   background:#fff7dd!important;
   border-color:#f5d36a!important;
   color:#7a4b00!important;
+}
+body.on-login #page-login span,
+body.on-login #page-login p span,
+body.on-creator-login #page-creator-login span,
+body.on-creator-login #page-creator-login p span {
+  color: inherit !important;
+}
+body.on-login #page-login span[style*="color:rgba(229,9,20"],
+body.on-login #page-login p span[style*="color:rgba(229,9,20"],
+body.on-creator-login #page-creator-login span[style*="color:rgba(229,9,20"],
+body.on-creator-login #page-creator-login p span[style*="color:rgba(229,9,20"] {
+  color: var(--red) !important;
+}
+body.on-login #page-login div[style*="background:rgba(255,255,255,0.08)"],
+body.on-creator-login #page-creator-login div[style*="background:rgba(255,255,255,0.08)"] {
+  background: rgba(0,0,0,0.08) !important;
+}
+body.on-login #page-login .psb[style*="background:rgba(255,255,255,0.1)"] {
+  background: rgba(0,0,0,0.1) !important;
+}
+body.on-login #page-login #pwdStrengthLabel {
+  color: #5f6368 !important;
+}
+/* Fix OR divider lines & text on white login background */
+body.on-login #page-login div[style*="background:rgba(255,255,255,0.08)"] {
+  background: #dadce0 !important;
+}
+body.on-login #page-login span[style*="color:rgba(255,255,255,0.25)"] {
+  color: #80868b !important;
+}
+body.on-login #page-login button:not(#tab-signin):not(#loginBtn):not(#signupBtn):not(#sendOtpBtn):not(#verifyOtpBtn):not([onclick*="signInWithGoogle"]) {
+  background: #fff !important;
+  border-color: #dadce0 !important;
+  color: #202124 !important;
+}
+body.on-login #page-login button[onclick*="signInWithGoogle"],
+body.on-login #page-login button[onclick*="signInWithGoogle"] * {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+body.on-login #page-login button[onclick*="signInWithGoogle"] {
+  background: #f1f3f4 !important;
+  border: 1px solid #dadce0 !important;
+  color: #3c4043 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
 }
 .location-sheet-backdrop{
   position:fixed;
@@ -516,6 +562,12 @@ body.on-creator-login #creatorVerificationMsg{
 .location-name{font-size:14px;font-weight:800;color:#111;}
 .location-meta{font-size:12px;color:#6b7280;margin-top:2px;line-height:1.35;}
 img.vylogo { background: transparent; mix-blend-mode: multiply; }
+/* Prevent Space Mono font vertical cutting/clipping */
+[style*="Space Mono"], [style*="Space Mono"] *, .ticket-price, .tier-price, .price-badge, .kpi-value, .rev-value, .payout-amt, .qty-num {
+  line-height: 1.35 !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
 </style>
 </head>
 <body class="on-splash">
@@ -579,6 +631,10 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 
   <div style="padding-bottom:44px;display:flex;flex-direction:column;gap:11px;">
     <button onclick="showPage('page-login')" style="width:100%;padding:16px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;background:#8B2010;color:#fff;">Get Started</button>
+    <button onclick="signInWithGoogle()" style="width:100%;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
+      <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Continue with Google
+    </button>
     <button onclick="quickLogin()" style="width:100%;padding:15px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:rgba(255,255,255,0.5);font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Continue as Guest</button>
     <div style="text-align:center;font-size:11px;color:rgba(255,255,255,0.18);">By continuing you agree to our <span style="color:rgba(255,255,255,0.35);cursor:pointer;">Terms</span> &amp; <span style="color:rgba(255,255,255,0.35);cursor:pointer;">Privacy</span></div>
   </div>
@@ -660,7 +716,7 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 
       <!-- Social row -->
       <div style="display:flex;gap:10px;margin-bottom:28px;">
-        <button onclick="signInWithGoogle()" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:7px;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,0.09)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+        <button onclick="signInWithGoogle()" style="flex:1;padding:12px;border-radius:12px;border:1px solid #dadce0;background:#f1f3f4;color:#3c4043;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:7px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,0.12);" onmouseover="this.style.background='#e8eaed';this.style.boxShadow='0 2px 6px rgba(0,0,0,0.16)'" onmouseout="this.style.background='#f1f3f4';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
           <svg width="15" height="15" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
           Continue with Google
         </button>
@@ -1069,12 +1125,15 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 </div>
 <div class="booking-step" id="bstep3">
 <div style="font-size:18px;font-weight:700;margin-bottom:16px;">Payment Method</div>
-<div class="pay-option selected" onclick="selPay(this)"><div class="pay-icon">🔵</div><div class="pay-info"><p>UPI</p><span>Pay to Malarapu Pradeep · 6300844129-5@ybl</span></div><div class="pay-radio"></div></div>
-<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💳</div><div class="pay-info"><p>Debit / Credit Card</p><span>Coming soon</span></div><div class="pay-radio"></div></div>
-<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💰</div><div class="pay-info"><p>Net Banking</p><span>Coming soon</span></div><div class="pay-radio"></div></div>
-<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">👛</div><div class="pay-info"><p>Wallet</p><span>Coming soon</span></div><div class="pay-radio"></div></div>
+<div class="pay-option selected" onclick="selPay(this)"><div class="pay-icon">🔵</div><div class="pay-info"><p>UPI</p><span>Google Pay, PhonePe, Paytm &amp; more</span></div><div class="pay-radio"></div></div>
+<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💳</div><div class="pay-info"><p>Debit / Credit Card</p><span>Visa, Mastercard, Rupay</span></div><div class="pay-radio"></div></div>
+<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">💰</div><div class="pay-info"><p>Net Banking</p><span>All major banks</span></div><div class="pay-radio"></div></div>
+<div class="pay-option" onclick="selPay(this)"><div class="pay-icon">👛</div><div class="pay-info"><p>Wallet</p><span>Mobikwik, Freecharge</span></div><div class="pay-radio"></div></div>
 <div style="background:var(--bg2);border-radius:14px;padding:14px;margin-bottom:20px;border:1px solid var(--glass-border);"><div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Amount to pay</div><div id="payAmountLabel" style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--neon)">₹4,836</div></div>
-<button class="cta-full" id="payNowBtn" onclick="payWithPayU()">Pay with UPI — ₹4,836</button>
+<button class="cta-full" id="payNowBtn" onclick="payWithPayU()">🔒 Pay via PayU — ₹4,836</button>
+<div id="cancelPayBtnWrap" style="display:none;text-align:center;margin-top:12px;">
+  <span onclick="cancelPendingPaymentFlow()" style="font-size:12px;color:var(--red);cursor:pointer;text-decoration:underline;">Cancel &amp; Retry</span>
+</div>
 </div>
 </div>
 
@@ -2216,6 +2275,32 @@ function enableVyberaLogoNavigation(){
   });
 }
 function goBack(){
+  var activePage=document.querySelector('.page.active');
+  var activeId=activePage?activePage.id:'';
+  if(activeId==='page-booking' && typeof bookingStep !== 'undefined' && bookingStep > 1){
+    bookingStep--;
+    document.querySelectorAll('.booking-step').forEach(function(s){s.classList.remove('active');});
+    document.getElementById('bstep'+bookingStep).classList.add('active');
+    document.querySelectorAll('.step').forEach(function(s){s.classList.remove('active','done');});
+    for(var i=1;i<=bookingStep;i++){
+      var ind = document.getElementById('bstep-ind-'+i);
+      if(ind) ind.classList.add('active');
+    }
+    if(bookingStep===2){
+      localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
+      localStorage.removeItem('VYBERA_PENDING_UPI_BOOKING');
+      var btn=document.getElementById('payNowBtn');
+      if(btn){
+        btn.disabled=false;
+        var totals=getCurrentBookingTotals();
+        btn.textContent='🔒 Pay via PayU — ₹'+totals.total.toLocaleString('en-IN');
+        btn.onclick=payWithPayU;
+      }
+      var cancelWrap=document.getElementById('cancelPayBtnWrap');
+      if(cancelWrap) cancelWrap.style.display='none';
+    }
+    return;
+  }
   if(pageHistory.length>1){
     pageHistory.pop();
     var prev=pageHistory[pageHistory.length-1];
@@ -2984,6 +3069,9 @@ function resetBookingFlow(){
   bookingStep=1;
   qty=1;
   APPLIED_COUPON=null;
+  // Clear any stale pending payment so fresh booking starts clean
+  localStorage.removeItem('VYBERA_PENDING_UPI_BOOKING');
+  localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
   [1,2,3].forEach(function(step){
     var panel=document.getElementById('bstep'+step);
     var indicator=document.getElementById('bstep-ind-'+step);
@@ -2997,6 +3085,11 @@ function resetBookingFlow(){
   var couponMsg=document.getElementById('couponMsg');if(couponMsg){couponMsg.style.display='none';couponMsg.textContent='';}
   var discountRow=document.getElementById('discountRow');if(discountRow)discountRow.style.display='none';
   var removeCouponBtn=document.getElementById('removeCouponBtn');if(removeCouponBtn)removeCouponBtn.style.display='none';
+  // Reset payment button to its initial state
+  var btn=document.getElementById('payNowBtn');
+  if(btn){ btn.disabled=false; btn.onclick=payWithPayU; }
+  var cancelWrap=document.getElementById('cancelPayBtnWrap');
+  if(cancelWrap) cancelWrap.style.display='none';
   var firstPay=document.querySelector('.pay-option');
   if(firstPay)selPay(firstPay);
 }
@@ -3529,7 +3622,7 @@ function updateOrderSummary() {
   if(couponLabel)couponLabel.textContent=APPLIED_COUPON?('Coupon '+APPLIED_COUPON.code):'Coupon discount';
   var t=document.getElementById('totalAmt');if(t)t.textContent=total<=0?'Free':'₹'+total.toLocaleString('en-IN');
   var p=document.getElementById('payAmountLabel');if(p)p.textContent=total<=0?'Free':'₹'+total.toLocaleString('en-IN');
-  var b=document.getElementById('payNowBtn');if(b)b.textContent=total<=0?'Confirm Free Booking':'Pay with UPI — ₹'+total.toLocaleString('en-IN');
+  var b=document.getElementById('payNowBtn');if(b&&!b.disabled)b.textContent=total<=0?'Confirm Free Booking':'🔒 Pay via PayU — ₹'+total.toLocaleString('en-IN');
   var q2=document.getElementById('qtySummary');if(q2)q2.textContent=q;
   var qn=document.getElementById('qtyNum');if(qn)qn.textContent=q;
   var selected=document.querySelector('.ticket-option.selected');
@@ -3664,7 +3757,11 @@ function openUpiPaymentUrl(url){
     window.cordova.InAppBrowser.open(url,'_system','location=yes');
     return;
   }
-  window.location.href=url;
+  try {
+    window.location.href=url;
+  } catch(e) {
+    console.error('Deep link payment scheme launch failed:', e);
+  }
 }
 
 function setUpiCompletionButton(){
@@ -3673,6 +3770,8 @@ function setUpiCompletionButton(){
   btn.disabled=false;
   btn.textContent='I have paid - Show QR';
   btn.onclick=function(){completePendingUpiPayment();};
+  var cancelWrap=document.getElementById('cancelPayBtnWrap');
+  if(cancelWrap) cancelWrap.style.display='block';
 }
 
 async function completePendingUpiPayment(){
@@ -3680,8 +3779,17 @@ async function completePendingUpiPayment(){
   var pending=null;
   try{ pending=pendingRaw?JSON.parse(pendingRaw):null; }catch(err){ pending=null; }
   if(!pending){showToast('No pending UPI payment found');return;}
-  var ok=confirm('Have you completed the UPI payment to '+VYBERA_PAYMENT_UPI_NAME+' ('+VYBERA_PAYMENT_UPI_ID+')?');
-  if(!ok)return;
+  var utr=prompt('Have you completed the UPI payment to '+VYBERA_PAYMENT_UPI_NAME+' ('+VYBERA_PAYMENT_UPI_ID+')?\n\nPlease enter the 12-digit UPI Transaction Reference/UTR Number to confirm your payment:');
+  if(utr === null)return;
+  utr = utr.trim();
+  if(!utr){
+    showToast('Payment verification requires a Transaction Reference ID');
+    return;
+  }
+  if(utr.length < 8){
+    showToast('Please enter a valid Transaction Reference ID/UTR');
+    return;
+  }
   if(pending.staffReferral)STAFF_REFERRAL=pending.staffReferral;
   await loadPublishedEvents();
   CURRENT_EVENT=(STORE.events||[]).find(function(e){return e.id===pending.eventId;})||CURRENT_EVENT;
@@ -3696,6 +3804,7 @@ async function completePendingUpiPayment(){
     gateway:'UPI',
     status:'Success',
     verified:false,
+    txnid:utr,
     upiId:VYBERA_PAYMENT_UPI_ID,
     payee:VYBERA_PAYMENT_UPI_NAME,
     amount:(pending.totals&&pending.totals.total)||0
@@ -3709,9 +3818,23 @@ async function completePendingUpiPayment(){
   }
 }
 
+function cancelPendingPaymentFlow(){
+  localStorage.removeItem('VYBERA_PENDING_PAYU_BOOKING');
+  localStorage.removeItem('VYBERA_PENDING_UPI_BOOKING');
+  var btn=document.getElementById('payNowBtn');
+  if(btn){
+    btn.disabled=false;
+    var totals=getCurrentBookingTotals();
+    btn.textContent=totals.total<=0?'Confirm Free Booking':'🔒 Pay via PayU — ₹'+totals.total.toLocaleString('en-IN');
+    btn.onclick=payWithPayU;
+  }
+  var cancelWrap=document.getElementById('cancelPayBtnWrap');
+  if(cancelWrap) cancelWrap.style.display='none';
+  showToast('Pending payment cleared. You can start over.');
+}
+window.cancelPendingPaymentFlow=cancelPendingPaymentFlow;
+
 async function payWithPayU(){
-  var pendingUpi=localStorage.getItem('VYBERA_PENDING_UPI_BOOKING');
-  if(pendingUpi){return completePendingUpiPayment();}
   if(!CURRENT_EVENT){ showToast('Select an event first'); return; }
   var selected=document.querySelector('.ticket-option.selected');
   var tierName=selected?selected.getAttribute('data-name'):(CURRENT_EVENT.tickets[0]||{}).name||'General';
@@ -3729,20 +3852,31 @@ async function payWithPayU(){
     buyer:buyer,
     staffReferral:STAFF_REFERRAL
   };
-  pending.upiId=VYBERA_PAYMENT_UPI_ID;
-  pending.upiName=VYBERA_PAYMENT_UPI_NAME;
   localStorage.setItem('VYBERA_PENDING_PAYU_BOOKING', JSON.stringify(pending));
-  localStorage.setItem('VYBERA_PENDING_UPI_BOOKING', JSON.stringify(pending));
   var btn=document.getElementById('payNowBtn');
-  if(btn){ btn.disabled=true; btn.textContent='Opening UPI app...'; }
+  if(btn){ btn.disabled=true; btn.textContent='Redirecting to PayU...'; }
   try{
-    openUpiPaymentUrl(makeUpiPaymentUrl(pending));
-    setTimeout(function(){
-      setUpiCompletionButton();
-      showToast('After payment, return here and tap "I have paid - Show QR"');
-    },900);
+    var resp=await fetch(apiUrl('/payments/payu/initiate'), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        txnid:bookingId,
+        bookingId:bookingId,
+        eventId:CURRENT_EVENT.id,
+        ticketType:tierName,
+        qty:totals.qty,
+        amount:totals.total,
+        productinfo:'VYBERA - '+(CURRENT_EVENT.name||'Event Booking'),
+        firstname:buyer.name,
+        email:buyer.email,
+        phone:buyer.phone
+      })
+    });
+    var data=await resp.json();
+    if(!resp.ok) throw new Error(data.error||'PayU initiation failed');
+    submitPayUForm(data.action, data.fields);
   }catch(err){
-    if(btn){ btn.disabled=false; btn.textContent='Pay with UPI — ₹'+totals.total.toLocaleString('en-IN'); }
+    if(btn){ btn.disabled=false; btn.textContent='🔒 Pay via PayU — ₹'+totals.total.toLocaleString('en-IN'); }
     showToast(err.message||'Payment could not start');
   }
 }
@@ -4261,10 +4395,13 @@ function restorePendingUpiPaymentButton(){
   if(!pendingRaw)return;
   try{
     var pending=JSON.parse(pendingRaw);
-    if(pending&&pending.eventId){
-      showToast('Pending UPI payment found. Tap "I have paid - Show QR" after payment.');
-      setUpiCompletionButton();
-    }
+    if(!pending||!pending.eventId) return;
+    // Only restore the button if the user is actually on the payment step (bstep3)
+    var step3=document.getElementById('bstep3');
+    var isOnStep3=step3&&step3.classList.contains('active');
+    if(!isOnStep3) return;
+    showToast('Pending UPI payment found. Tap "I have paid - Show QR" after payment.');
+    setUpiCompletionButton();
   }catch(err){}
 }
 
@@ -6643,8 +6780,15 @@ function isBlockedGoogleWebView(){
 }
 function openGoogleInSystemBrowser(){
   safeSessionRemove('VYBERA_GOOGLE_PENDING');
-  var url='https://vybera.onrender.com?google=1';
-  alert('Google sign-in cannot complete inside the app WebView. VYBERA will open your phone browser for Google sign-in. For in-app login, use email and password.');
+  var useFallback = confirm("Google sign-in cannot complete inside the APK WebView.\n\nWould you like to use Google Email Fallback instead? (Recommended for Android App)");
+  if(useFallback) {
+    return localGoogleSignInFallback();
+  }
+  var apiBase = window.VYBERA_API_BASE || 'https://vybera.onrender.com';
+  if (window.location.origin && window.location.origin.indexOf('http') === 0 && window.location.origin.indexOf('localhost') === -1) {
+    apiBase = window.location.origin;
+  }
+  var url = apiBase + '?google=1';
   if(window.cordova && window.cordova.InAppBrowser){
     window.cordova.InAppBrowser.open(url,'_system','location=yes');
     return true;
