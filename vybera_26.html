@@ -6779,20 +6779,41 @@ function isBlockedGoogleWebView(){
 }
 function openGoogleInSystemBrowser(){
   safeSessionRemove('VYBERA_GOOGLE_PENDING');
-  // In APK WebView, silently use Google Email Fallback (no disruptive confirm dialog)
-  if(window.cordova) {
-    return localGoogleSignInFallback();
-  }
   var apiBase = window.VYBERA_API_BASE || 'https://vybera.onrender.com';
   if (window.location.origin && window.location.origin.indexOf('http') === 0 && window.location.origin.indexOf('localhost') === -1) {
     apiBase = window.location.origin;
   }
   var url = apiBase + '?google=1';
   if(window.cordova && window.cordova.InAppBrowser){
-    window.cordova.InAppBrowser.open(url,'_system','location=yes');
+    showToast('Opening secure Google sign-in...');
+    var ref = window.cordova.InAppBrowser.open(url, '_blank', 'location=yes,clearcache=yes,clearsessioncache=yes,userAgent=Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36');
+    var pollInterval = setInterval(function() {
+      ref.executeScript({
+        code: "JSON.stringify({token: localStorage.getItem('VYBERA_BUYER_TOKEN'), profile: localStorage.getItem('VYBERA_BUYER_PROFILE')})"
+      }, function(result) {
+        if (result && result[0]) {
+          try {
+            var data = JSON.parse(result[0]);
+            if (data.token && data.profile) {
+              clearInterval(pollInterval);
+              localStorage.setItem('VYBERA_BUYER_TOKEN', data.token);
+              localStorage.setItem('VYBERA_BUYER_PROFILE', data.profile);
+              ref.close();
+              var profile = JSON.parse(data.profile);
+              applySocialLogin(profile, {force: true});
+            }
+          } catch(e) {
+            console.error('Error parsing login from browser:', e);
+          }
+        }
+      });
+    }, 1000);
+    ref.addEventListener('exit', function() {
+      clearInterval(pollInterval);
+    });
     return true;
   }
-  window.open(url,'_system');
+  window.open(url, '_system');
   return true;
 }
 async function signInWithGoogle(){
