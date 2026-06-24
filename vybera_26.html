@@ -19,8 +19,8 @@
   --white: #111111;        /* Changed text color for readability */
   --grey: #666666;         /* Changed from #B3B3B3 */
   --muted: #999999;        /* Changed from #555 */
-  --glass: rgb(255, 255, 255);
-  --glass-border: rgba(255, 254, 254, 0.964);
+  --glass: rgba(0,0,0,0.04);
+  --glass-border: rgba(0,0,0,0.12);
   --radius: 16px;
   --brick: #8B2010;
   --teal: #8B2010;
@@ -108,6 +108,7 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .hero-title{font-family:"Bebas Neue",sans-serif;font-size:40px;line-height:1.02;margin-bottom:8px;letter-spacing:2px;}
 .hero-meta{color:var(--grey);font-size:13px;margin:8px 0 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-right:8px;}
 .hero-actions{display:flex;gap:10px;}
+.hero-actions .btn-ghost{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);color:#fff;backdrop-filter:blur(6px);}
 .hero-dots{position:absolute;bottom:116px;left:20px;display:flex;gap:6px;}
 .dot{width:6px;height:6px;border-radius:3px;background:var(--muted);transition:all .3s;cursor:pointer;}
 .dot.active{width:20px;background:var(--red);}
@@ -617,23 +618,23 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 
 
 <!-- SPLASH -->
-<div class="page active" id="page-splash" style="padding-bottom:0;background:#000;overflow:hidden;min-height:100vh;" data-default="true">
+<div class="page active" id="page-splash" style="padding-bottom:0;background:#ffffff;overflow:hidden;min-height:100vh;" data-default="true">
 
 <div style="position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh;padding:0 28px;max-width:420px;margin:0 auto;">
 
   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:24px;">
     <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="vylogo" style="height:180px;width:auto;object-fit:contain;" alt="VYBERA"/>
-    <p style="font-size:13px;color:rgba(255,255,255,0.35);line-height:1.7;max-width:260px;">India's most cinematic event discovery &amp; booking platform.</p>
+    <p style="font-size:13px;color:rgba(0,0,0,0.45);line-height:1.7;max-width:260px;">India's most cinematic event discovery &amp; booking platform.</p>
   </div>
 
   <div style="padding-bottom:44px;display:flex;flex-direction:column;gap:11px;">
     <button onclick="showPage('page-login')" style="width:100%;padding:16px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;background:#8B2010;color:#fff;">Get Started</button>
-    <button onclick="signInWithGoogle()" style="width:100%;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
+    <button onclick="signInWithGoogle()" style="width:100%;padding:14px;border-radius:14px;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#202124;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;">
       <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
       Continue with Google
     </button>
-    <button onclick="quickLogin()" style="width:100%;padding:15px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:rgba(255,255,255,0.5);font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Continue as Guest</button>
-    <div style="text-align:center;font-size:11px;color:rgba(255,255,255,0.18);">By continuing you agree to our <span style="color:rgba(255,255,255,0.35);cursor:pointer;">Terms</span> &amp; <span style="color:rgba(255,255,255,0.35);cursor:pointer;">Privacy</span></div>
+    <button onclick="quickLogin()" style="width:100%;padding:15px;border-radius:14px;border:1px solid rgba(0,0,0,0.12);background:transparent;color:rgba(0,0,0,0.45);font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Continue as Guest</button>
+    <div style="text-align:center;font-size:11px;color:rgba(0,0,0,0.25);">By continuing you agree to our <span style="color:rgba(0,0,0,0.4);cursor:pointer;">Terms</span> &amp; <span style="color:rgba(0,0,0,0.4);cursor:pointer;">Privacy</span></div>
   </div>
 
 </div>
@@ -6778,8 +6779,8 @@ function isBlockedGoogleWebView(){
 }
 function openGoogleInSystemBrowser(){
   safeSessionRemove('VYBERA_GOOGLE_PENDING');
-  var useFallback = confirm("Google sign-in cannot complete inside the APK WebView.\n\nWould you like to use Google Email Fallback instead? (Recommended for Android App)");
-  if(useFallback) {
+  // In APK WebView, silently use Google Email Fallback (no disruptive confirm dialog)
+  if(window.cordova) {
     return localGoogleSignInFallback();
   }
   var apiBase = window.VYBERA_API_BASE || 'https://vybera.onrender.com';
