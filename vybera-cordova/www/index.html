@@ -6779,53 +6779,86 @@ function isBlockedGoogleWebView(){
   var ua=navigator.userAgent||'';
   return !!window.cordova || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
 }
+
+// ─── GOOGLE SIGN-IN VIA SYSTEM BROWSER ─────────────────────────────────────
+// Google blocks OAuth inside WebViews (InAppBrowser included). Solution:
+// 1. Generate a random code
+// 2. Open the system browser (Chrome/Firefox) at ?google=1&code=XYZ
+// 3. The web page completes Firebase auth then POSTs token to /google-token/store?code=XYZ
+// 4. App polls /google-token/fetch?code=XYZ every 2s — applies login when ready
+var _googlePollTimer = null;
+var _googlePollAborted = false;
+
 function openGoogleInSystemBrowser(){
   safeSessionRemove('VYBERA_GOOGLE_PENDING');
-  var apiBase = window.VYBERA_API_BASE || 'https://vybera.onrender.com';
-  if (window.location.origin && window.location.origin.indexOf('http') === 0 && window.location.origin.indexOf('localhost') === -1) {
-    apiBase = window.location.origin;
+
+  // Generate a random 16-char code
+  var code = '';
+  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for(var i=0;i<16;i++) code += chars.charAt(Math.floor(Math.random()*chars.length));
+
+  var apiBase = 'https://vybera.onrender.com';
+  var url = apiBase + '?google=1&code=' + code;
+
+  // Open in SYSTEM browser (not InAppBrowser WebView — Google blocks OAuth in WebViews)
+  if(window.cordova && cordova.InAppBrowser){
+    cordova.InAppBrowser.open(url, '_system', 'location=yes');
+  } else {
+    window.open(url, '_system');
   }
-  var url = apiBase + '?google=1';
-  if(window.cordova && window.cordova.InAppBrowser){
-    showToast('Opening secure Google sign-in...');
-    var ref = window.cordova.InAppBrowser.open(url, '_blank', 'location=yes,clearcache=yes,clearsessioncache=yes,userAgent=Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36');
-    var pollInterval = setInterval(function() {
-      ref.executeScript({
-        code: "JSON.stringify({token: localStorage.getItem('VYBERA_BUYER_TOKEN'), profile: localStorage.getItem('VYBERA_BUYER_PROFILE')})"
-      }, function(result) {
-        if (result && result[0]) {
-          try {
-            var data = JSON.parse(result[0]);
-            if (data.token && data.profile) {
-              clearInterval(pollInterval);
-              localStorage.setItem('VYBERA_BUYER_TOKEN', data.token);
-              localStorage.setItem('VYBERA_BUYER_PROFILE', data.profile);
-              ref.close();
-              var profile = JSON.parse(data.profile);
-              applySocialLogin(profile, {force: true});
-            }
-          } catch(e) {
-            console.error('Error parsing login from browser:', e);
+
+  showToast('Continue in the browser that just opened...');
+
+  // Poll server for the token (every 2s for up to 3 minutes)
+  _googlePollAborted = false;
+  if(_googlePollTimer) clearInterval(_googlePollTimer);
+  var pollCount = 0;
+  var maxPolls = 90; // 3 minutes
+
+  _googlePollTimer = setInterval(function(){
+    if(_googlePollAborted){
+      clearInterval(_googlePollTimer);
+      return;
+    }
+    pollCount++;
+    if(pollCount > maxPolls){
+      clearInterval(_googlePollTimer);
+      showToast('Google sign-in timed out. Please try again.');
+      return;
+    }
+    fetch(apiBase + '/google-token/fetch?code=' + code)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(data && data.ready){
+          clearInterval(_googlePollTimer);
+          // Token received — store and apply login
+          if(data.token) localStorage.setItem('VYBERA_BUYER_TOKEN', data.token);
+          if(data.profile){
+            var profile = typeof data.profile === 'string' ? JSON.parse(data.profile) : data.profile;
+            localStorage.setItem('VYBERA_BUYER_PROFILE', JSON.stringify(profile));
+            // Apply directly (bypass /social-login since server already did upsert)
+            applyBuyerProfile(profile);
+            safeSessionRemove('VYBERA_GOOGLE_PENDING');
+            showToast('Signed in with Google ✓');
+            Promise.all([loadBuyerBookingHistory(), loadProfileCreatorEvents()])
+              .then(function(){ renderProfileCreatorEvents(); })
+              .catch(function(e){ console.error('Post-login sync:', e); });
+            if(!continueAfterBuyerAuth()) navigateBuyerHome();
           }
         }
-      });
-    }, 1000);
-    ref.addEventListener('exit', function() {
-      clearInterval(pollInterval);
-    });
-    return true;
-  }
-  window.open(url, '_system');
+      })
+      .catch(function(e){ console.warn('Token poll error:', e); });
+  }, 2000);
+
   return true;
 }
+window.openGoogleInSystemBrowser = openGoogleInSystemBrowser;
+
 async function signInWithGoogle(){
   if(isBlockedGoogleWebView()){
-    if(typeof window.openGoogleInSystemBrowser==='function'){
-      showToast('Opening secure Google sign-in...');
-      return window.openGoogleInSystemBrowser();
-    }
-    showToast('Google sign-in needs email fallback in this browser');
-    return localGoogleSignInFallback();
+    showToast('Opening Google sign-in...');
+    _googlePollAborted = false;
+    return openGoogleInSystemBrowser();
   }
   safeSessionRemove('VYBERA_GUEST_MODE');
   safeSessionSet('VYBERA_GOOGLE_PENDING','1');

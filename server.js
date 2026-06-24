@@ -1060,6 +1060,56 @@ initDb().catch((err) => {
   process.exit(1);
 });
 
+// ─── GOOGLE TOKEN RELAY ────────────────────────────────────────────────────────
+// Used by the Android APK to do Google Sign-in via the system browser.
+// Flow: app generates a `code`, opens system browser → user signs in → web page
+// POSTs the JWT to /google-token/store?code=XYZ → app polls /google-token/fetch?code=XYZ
+const googleTokenStore = new Map(); // code → { token, profile, createdAt }
+
+// Clean up tokens older than 5 minutes every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, val] of googleTokenStore) {
+    if (now - val.createdAt > 5 * 60 * 1000) googleTokenStore.delete(code);
+  }
+}, 60 * 1000);
+
+app.post("/google-token/store", (req, res) => {
+  const code = String(req.query.code || "").trim();
+  if (!code || code.length < 8) return res.status(400).json({ error: "Invalid code" });
+  const { token, profile } = req.body || {};
+  if (!token || !profile) return res.status(400).json({ error: "token and profile required" });
+  googleTokenStore.set(code, { token, profile, createdAt: Date.now() });
+  res.json({ ok: true });
+});
+
+app.get("/google-token/fetch", (req, res) => {
+  const code = String(req.query.code || "").trim();
+  if (!code) return res.status(400).json({ error: "Missing code" });
+  const entry = googleTokenStore.get(code);
+  if (!entry) return res.json({ ready: false });
+  googleTokenStore.delete(code); // consume once
+  res.json({ ready: true, token: entry.token, profile: entry.profile });
+});
+
+// Standalone Google login success page (shown in system browser after OAuth)
+app.get("/google-auth-success", (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signed In – VYBERA</title>
+<style>
+  body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;
+       background:#0a0a0a;font-family:sans-serif;color:#fff;flex-direction:column;gap:16px}
+  .icon{font-size:64px}
+  h2{margin:0;font-size:22px}
+  p{margin:0;color:#aaa;font-size:14px;text-align:center}
+</style></head><body>
+<div class="icon">✅</div>
+<h2>Signed in successfully!</h2>
+<p>You can close this tab and return to VYBERA.</p>
+</body></html>`);
+});
+
 // OPEN HTML PAGE
 app.get("/", (req, res) => {
   res.set(
