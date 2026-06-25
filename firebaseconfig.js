@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import {
   getAuth,
   GoogleAuthProvider,
+  signInWithCredential,
   browserLocalPersistence,
   setPersistence,
   signInWithPopup,
