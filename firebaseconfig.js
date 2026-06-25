@@ -235,6 +235,33 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
     if (isCordovaWebView()) {
       markGooglePending();
       
+      // Use cordova-plugin-googleplus for direct Google Sign-In
+      if (window.plugins && window.plugins.googleplus) {
+        window.plugins.googleplus.login(
+          {
+            webClientId: '544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com', // Replace with your Firebase Web Client ID
+            offline: true
+          },
+          async (userData) => {
+            try {
+              const credential = GoogleAuthProvider.credential(userData.idToken);
+              const userCredential = await signInWithCredential(auth, credential);
+              await finishGoogleUser(userCredential.user);
+            } catch (err) {
+              console.error('Firebase credential sign-in failed:', err);
+              clearGooglePending();
+              alert('Google sign-in failed: ' + (err.message || 'Unknown error'));
+            }
+          },
+          (err) => {
+            console.error('Google login failed:', err);
+            clearGooglePending();
+            alert('Google sign-in failed: ' + (err.message || 'Please try again'));
+          }
+        );
+        return;
+      }
+      
       if (hasCordovaFirebaseAuth()) {
         cordova.plugins.firebase.auth.signInWithGoogle().then(function(user) {
           return finishGoogleUser({
