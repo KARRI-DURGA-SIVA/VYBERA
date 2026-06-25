@@ -240,7 +240,7 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
       if (window.plugins && window.plugins.googleplus) {
         window.plugins.googleplus.login(
           {
-            webClientId: '544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com', // Replace with your Firebase Web Client ID
+            webClientId: '544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com',
             offline: true
           },
           async (userData) => {

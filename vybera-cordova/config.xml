@@ -15,6 +15,7 @@
     <preference name="StatusBarBackgroundColor" value="#000000" />
     <preference name="StatusBarStyle" value="lightcontent" />
     <preference name="android-targetSdkVersion" value="36" />
+    <preference name="GoogleSignInClientId" value="544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com" />
     <platform name="android">
         <config-file parent="/manifest" target="AndroidManifest.xml">
             <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

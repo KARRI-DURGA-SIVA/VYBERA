@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import {
   getAuth,
   GoogleAuthProvider,
+  signInWithCredential,
   browserLocalPersistence,
   setPersistence,
   signInWithPopup,
@@ -18,6 +19,7 @@ const firebaseConfig = {
   storageBucket: "vybera.firebasestorage.app",
   messagingSenderId: "544899681732",
   appId: "1:544899681732:web:72950958f1ac6b83356891",
+  oauthClientId: "544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -168,6 +170,35 @@ window.vyberaFirebaseCompleteGoogleReturn = async function vyberaFirebaseComplet
 window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() {
   try {
     if (isCordovaWebView()) {
+      markGooglePending();
+      
+      // Use cordova-plugin-googleplus for direct Google Sign-In
+      if (window.plugins && window.plugins.googleplus) {
+        window.plugins.googleplus.login(
+          {
+            webClientId: '544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com',
+            offline: true
+          },
+          async (userData) => {
+            try {
+              const credential = GoogleAuthProvider.credential(userData.idToken);
+              const userCredential = await signInWithCredential(auth, credential);
+              await finishGoogleUser(userCredential.user);
+            } catch (err) {
+              console.error('Firebase credential sign-in failed:', err);
+              clearGooglePending();
+              alert('Google sign-in failed: ' + (err.message || 'Unknown error'));
+            }
+          },
+          (err) => {
+            console.error('Google login failed:', err);
+            clearGooglePending();
+            alert('Google sign-in failed: ' + (err.message || 'Please try again'));
+          }
+        );
+        return;
+      }
+      
       if (typeof window.openGoogleInSystemBrowser === "function") {
         return window.openGoogleInSystemBrowser();
       }
@@ -222,9 +253,8 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
   }
 };
 
-if (!isCordovaWebView()) {
-  window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
-}
+// Always assign for Cordova WebView
+window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
 
 window.vyberaFirebaseSignOut = function() {
   return signOut(auth).catch((err) => {
