@@ -834,10 +834,11 @@ window.addEventListener('DOMContentLoaded', function(){
   </div>
 
   <!-- Footer -->
-  <div style="padding:14px 24px;border-top:1px solid var(--adm-border);display:flex;gap:8px;flex-shrink:0;margin-top:12px;">
-    <button id="iBtnBack" onclick="inviteStepBack()" style="display:none;flex:1;padding:11px;background:var(--adm-input-bg);border:1px solid var(--adm-border);border-radius:10px;color:var(--adm-text2);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">&larr; Back</button>
-    <button id="iBtnNext" onclick="inviteStepNext()" style="flex:1;padding:11px;background:#8B2010;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Continue &rarr;</button>
-    <button id="iBtnCreate" onclick="inviteCreateAccount()" style="display:none;flex:1;padding:11px;background:#22c55e;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Create Account &#10003;</button>
+  <div style="padding:14px 24px;border-top:1px solid var(--adm-border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;margin-top:12px;">
+    <div id="inviteCreateError" style="display:none;flex:1 0 100%;padding:10px 12px;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.35);border-radius:10px;color:#fecaca;font-size:12px;font-weight:600;line-height:1.35;"></div>
+    <button type="button" id="iBtnBack" onclick="inviteStepBack();return false;" style="display:none;flex:1;padding:11px;background:var(--adm-input-bg);border:1px solid var(--adm-border);border-radius:10px;color:var(--adm-text2);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">&larr; Back</button>
+    <button type="button" id="iBtnNext" onclick="inviteStepNext();return false;" style="flex:1;padding:11px;background:#8B2010;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Continue &rarr;</button>
+    <button type="button" id="iBtnCreate" onclick="inviteCreateAccount(event);return false;" style="display:none;flex:1;padding:11px;background:#22c55e;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Create Account &#10003;</button>
   </div>
 </div>
 </div>
@@ -885,7 +886,7 @@ window.addEventListener('DOMContentLoaded', function(){
 <div class="qty-row"><div style="font-size:14px;font-weight:600;" id="ticketTierLabel">General Admission</div><div class="qty-control"><div class="qty-btn" onclick="changeQty(-1)">−</div><div class="qty-num" id="qtyNum">1</div><div class="qty-btn" onclick="changeQty(1)">+</div></div></div>
 
 <div class="coupon-row" style="display:flex;gap:8px;margin:12px 0;">
-  <input class="coupon-input" id="couponInput" type="text" placeholder="Enter coupon code" style="flex:1;text-transform:uppercase;"/>
+  <input class="coupon-input" id="couponInput" type="text" placeholder="Enter coupon code" style="flex:1;text-transform:uppercase;color:#202124;"/>
   <button class="apply-btn" onclick="applyCouponCode()" style="padding:0 16px;">Apply</button>
   <button id="removeCouponBtn" onclick="removeCoupon()" style="display:none;padding:0 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;">✕</button>
 </div>
@@ -3650,6 +3651,7 @@ showSuccess = async function(paymentMeta, pendingBooking){
 
 async function persistBooking(booking){
   try {
+    console.log('Persisting booking:', booking);
     var resp=await fetch(apiUrl('/bookings'),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -3657,6 +3659,8 @@ async function persistBooking(booking){
     });
     var data=await readAuthResponse(resp);
     if(!resp.ok) throw new Error(data.error||'Booking could not be stored');
+    console.log('Booking persisted successfully:', data.booking);
+    console.log('QR Image present:', !!data.booking.qrImage);
     return data.booking;
   } catch(err) {
     console.error('Booking persistence failed:',err);
@@ -6893,6 +6897,13 @@ function admUserTab(tab){
 
 var admBuyersList = [];
 
+function admFormatAccountCreated(value){
+  if(!value) return '—';
+  var d=new Date(value);
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+}
+
 function admRenderBuyers(){
   var tbody = document.getElementById('buyersBody');
   var lbl   = document.getElementById('buyerCountLbl');
@@ -6901,8 +6912,10 @@ function admRenderBuyers(){
   if(lbl) lbl.textContent = list.length + ' registered buyers';
   tbody.innerHTML = list.map(function(b, i){
     var bc = b.status==='Active'?'green':'red';
+    var created=admFormatAccountCreated(b.createdAt||b.created_at);
     return '<tr><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
       +'<td><div style="font-weight:600;color:var(--adm-text);">'+b.name+'</div><div style="font-size:10px;color:var(--adm-text2);">'+b.email+'</div></td>'
+      +'<td><div style="font-size:11px;color:var(--adm-text2);white-space:nowrap;">'+created+'</div></td>'
       +'<td>'+b.bookings+'</td><td>'+b.city+'</td>'
       +'<td><span class="adm-badge '+bc+'">'+b.status+'</span></td>'
       +'<td><div style="display:flex;gap:4px;">'
@@ -6924,15 +6937,19 @@ function admEscapeHtml(value){
 
 function admRenderCreators(){
   var tbody = document.getElementById('creatorsBody');
+  var lbl = document.getElementById('creatorCountLbl');
   if(!tbody) return;
+  if(lbl) lbl.textContent = admCreatorsList.length + ' registered creators';
   tbody.innerHTML = admCreatorsList.map(function(c,i){
     var verified = c.status==='Verified'||c.status==='Approved';
     var pending = c.status==='Pending';
     var bc = verified?'green':pending?'yellow':'red';
     var statusLabel = c.status==='Approved'?'Verified':c.status;
     var docsCount = (c.documents||[]).length;
+    var created=admFormatAccountCreated(c.createdAt||c.joinedAt||c.ts||c.created_at);
     return '<tr><td style="color:var(--adm-text2);">'+(i+1)+'</td>'
       +'<td onclick="admOpenCreatorReview(\''+c.id+'\')" style="cursor:pointer;"><div style="font-weight:600;color:var(--adm-text);">'+admEscapeHtml(c.name)+'</div><div style="font-size:10px;color:var(--adm-text2);">'+admEscapeHtml(c.email)+'</div><div style="font-size:10px;color:#00D4D4;margin-top:2px;">Review '+docsCount+' document'+(docsCount===1?'':'s')+'</div></td>'
+      +'<td><div style="font-size:11px;color:var(--adm-text2);white-space:nowrap;">'+admEscapeHtml(created)+'</div></td>'
       +'<td><span class="adm-badge blue">'+admEscapeHtml(c.category||'—')+'</span></td>'
       +'<td>'+c.events+'</td>'
       +'<td style="font-size:11px;">₹'+c.revenue.toLocaleString('en-IN')+'</td>'
@@ -7933,11 +7950,32 @@ function admRefreshDashboard(){
 var _inviteStep = 1;
 var _inviteType = 'admin';
 var _staffPerms = {sell:true, scan:true, clients:true, wallet:false};
+var _inviteCreating = false;
+
+function makeTempPassword(len){
+  var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#';
+  var p='';
+  for(var i=0;i<(len||12);i++) p+=chars[Math.floor(Math.random()*chars.length)];
+  return p;
+}
+
+function setInviteError(msg){
+  var el=document.getElementById('inviteCreateError');
+  if(!el) return;
+  if(msg){
+    el.textContent=msg;
+    el.style.display='block';
+  } else {
+    el.textContent='';
+    el.style.display='none';
+  }
+}
 
 function admOpenAdminModal(){
   _inviteStep = 1;
   _inviteType = isSuperAdmin()?'admin':'staff';
   _staffPerms = {sell:true, scan:true, clients:true, wallet:false};
+  setInviteError('');
   ['iStep1','iStep2','iStep3','iStep4'].forEach(function(s,i){
     var el=document.getElementById(s); if(el) el.style.display=i===0?'block':'none';
   });
@@ -7988,6 +8026,7 @@ function toggleStaffPerm(perm, el){
 }
 
 function inviteStepNext(){
+  setInviteError('');
   if(_inviteStep===1){
     if(_inviteType!=='admin'&&_inviteType!=='staff'){
       admShowToast('Please select Admin or Staff'); return;
@@ -7997,12 +8036,17 @@ function inviteStepNext(){
     var name=(document.getElementById('newAdmName')||{}).value||'';
     var email=(document.getElementById('newAdmEmail')||{}).value||'';
     var pwd=(document.getElementById('newAdmPwd')||{}).value||'';
-    if(!name){ admShowToast('Enter full name'); return; }
-    if(!email){ admShowToast('Enter email address'); return; }
-    if(!pwd){ admShowToast('Set a password'); return; }
+    if(!name){ setInviteError('Enter full name'); admShowToast('Enter full name'); return; }
+    if(_inviteType==='admin' && !email){ setInviteError('Enter email address'); admShowToast('Enter email address'); return; }
+    if(!pwd){
+      pwd=makeTempPassword(12);
+      var pwdInput=document.getElementById('newAdmPwd');
+      if(pwdInput) pwdInput.value=pwd;
+    }
+    if(pwd.length<6){ setInviteError('Password must be at least 6 characters'); admShowToast('Password must be at least 6 characters'); return; }
     if(_inviteType==='staff'){
       var sid=(document.getElementById('newAdmStaffId')||{}).value||'';
-      if(!sid){ admShowToast('Enter a staff login ID'); return; }
+      if(!sid){ setInviteError('Enter a staff login ID'); admShowToast('Enter a staff login ID'); return; }
     }
     inviteBuildConfirmation();
   }
@@ -8079,64 +8123,122 @@ function inviteBuildConfirmation(){
   }).join('');
 }
 
-async function inviteCreateAccount(){
-  var name=(document.getElementById('newAdmName')||{}).value||'';
-  var email=(document.getElementById('newAdmEmail')||{}).value||'';
-  var phone=(document.getElementById('newAdmPhone')||{}).value||'';
-  var pwd=(document.getElementById('newAdmPwd')||{}).value||'vybera@2026';
-  var notes=(document.getElementById('newAdmNotes')||{}).value||'';
+function ensureAdminCreateStore(){
+  if(!Array.isArray(STORE.adminUsers)) STORE.adminUsers=[];
+  if(!Array.isArray(STORE.staff)) STORE.staff=[];
+  if(!Array.isArray(STORE.events)) STORE.events=[];
+  if(!STORE.wallets) STORE.wallets={};
+  if(!STORE.wallets.staff) STORE.wallets.staff={};
+}
+
+function resetInviteCreateButton(){
   var createBtn=document.getElementById('iBtnCreate');
-  if(createBtn){ createBtn.disabled=true; createBtn.textContent='Creating...'; }
-  if(_inviteType==='admin'){
-    var role=(document.getElementById('newAdmRole')||{}).value||'Admin';
-    var perms=[]; document.querySelectorAll('#admPermsGrid input[type=checkbox]').forEach(function(cb){ if(cb.checked) perms.push(cb.name.replace('perm_','')); });
-    try{
-      var admin=await createAdminFromApi({name:name,email:email,phone:phone,role:role,password:pwd,permissions:perms,notes:notes});
-      if(admin){ admin.phone=phone; admin.permissions=perms; admin.notes=notes; STORE.adminUsers.push(admin); }
-      admShowToast('Admin created: '+name+' ('+role+')');
-      STORE.addAdminLog('Create Admin',name+' -- '+role+' -- '+perms.length+' modules');
-    }catch(err){
-      admShowToast(err.message||'Could not create admin');
-      if(createBtn){ createBtn.disabled=false; createBtn.textContent='Create Account'; }
-      return;
-    }
-  } else {
-    var staffId=(document.getElementById('newAdmStaffId')||{}).value||'';
-    if(!staffId) staffId=name.toLowerCase().replace(/\s+/g,'.')+'.staff';
-    var evId=(document.getElementById('staffEventAssign')||{}).value||'';
-    if(STORE.staff.find(function(s){return s.staffId===staffId;})){
-      admShowToast('Staff ID already taken');
-      if(createBtn){ createBtn.disabled=false; createBtn.textContent='Create Account'; }
-      return;
-    }
-    var newStaff=null;
-    try{
-      newStaff=await createPlatformStaffFromApi({name:name,phone:phone,email:email,staffId:staffId,password:pwd,permissions:_staffPerms,notes:notes});
-      if(newStaff){ newStaff.permissions=_staffPerms; newStaff.notes=notes; STORE.staff.push(newStaff); STORE.wallets.staff[newStaff.id]=Number(newStaff.earnings||0); }
-    }catch(err){
-      admShowToast(err.message||'Could not create staff');
-      if(createBtn){ createBtn.disabled=false; createBtn.textContent='Create Account'; }
-      return;
-    }
-    if(evId && newStaff){
-      var ev=STORE.events.find(function(e){return e.id===evId;});
-      if(ev && ev.tickets && ev.tickets.length>0) STORE.assignTickets(evId,ev.tickets[0].name,10,newStaff.id);
-    }
-    admShowToast('Staff created: '+name+' (@'+staffId+')');
-    STORE.addAdminLog('Create Staff',name+' -- @'+staffId);
+  if(createBtn){
+    createBtn.disabled=false;
+    createBtn.textContent='Create Account';
+    createBtn.style.opacity='1';
+    createBtn.style.pointerEvents='auto';
   }
-  admCloseModal('adminModal');
-  if(typeof admRefreshRoles==='function') admRefreshRoles();
-  if(typeof admRefreshStaff==='function') admRefreshStaff();
-  if(typeof admRefreshAudit==='function') admRefreshAudit();
-  if(createBtn){ createBtn.disabled=false; createBtn.textContent='Create Account'; }
+}
+
+async function inviteCreateAccount(evt){
+  if(evt){
+    if(evt.preventDefault) evt.preventDefault();
+    if(evt.stopPropagation) evt.stopPropagation();
+  }
+  if(_inviteCreating) return false;
+  _inviteCreating = true;
+  setInviteError('');
+  ensureAdminCreateStore();
+  var createBtn=document.getElementById('iBtnCreate');
+  if(createBtn){
+    createBtn.disabled=true;
+    createBtn.textContent='Creating...';
+    createBtn.style.opacity='.75';
+    createBtn.style.pointerEvents='none';
+  }
+  try{
+    var name=String((document.getElementById('newAdmName')||{}).value||'').trim();
+    var email=String((document.getElementById('newAdmEmail')||{}).value||'').trim();
+    var phone=String((document.getElementById('newAdmPhone')||{}).value||'').trim();
+    var pwd=String((document.getElementById('newAdmPwd')||{}).value||'').trim();
+    var notes=String((document.getElementById('newAdmNotes')||{}).value||'').trim();
+    if(!pwd){
+      pwd=makeTempPassword(12);
+      var pwdInput=document.getElementById('newAdmPwd');
+      if(pwdInput) pwdInput.value=pwd;
+    }
+    if(!name) throw new Error('Enter full name');
+    if(_inviteType==='admin' && !email) throw new Error('Enter email address');
+    if(pwd.length<6) throw new Error('Password must be at least 6 characters');
+
+    if(_inviteType==='admin'){
+      var role=(document.getElementById('newAdmRole')||{}).value||'Admin';
+      var perms=[]; document.querySelectorAll('#admPermsGrid input[type=checkbox]').forEach(function(cb){ if(cb.checked) perms.push(cb.name.replace('perm_','')); });
+      var admin=await createAdminFromApi({name:name,email:email,phone:phone,role:role,password:pwd,permissions:perms,notes:notes});
+      if(admin){
+        admin.phone=phone;
+        admin.permissions=perms;
+        admin.notes=notes;
+        STORE.adminUsers.push(admin);
+      }
+      admShowToast('Admin created: '+name+' ('+role+')');
+      if(STORE.addAdminLog) STORE.addAdminLog('Create Admin',name+' -- '+role+' -- '+perms.length+' modules');
+    } else {
+      var staffId=String((document.getElementById('newAdmStaffId')||{}).value||'').trim().toLowerCase();
+      if(!staffId) staffId=name.toLowerCase().replace(/\s+/g,'.')+'.staff';
+      var evId=(document.getElementById('staffEventAssign')||{}).value||'';
+      if((STORE.staff||[]).find(function(s){return String(s.staffId||'').toLowerCase()===staffId;})){
+        throw new Error('Staff ID already taken');
+      }
+      var newStaff=await createPlatformStaffFromApi({name:name,phone:phone,email:email,staffId:staffId,password:pwd,eventId:evId,permissions:_staffPerms,notes:notes});
+      if(newStaff){
+        newStaff.permissions=_staffPerms;
+        newStaff.notes=notes;
+        STORE.staff.push(newStaff);
+        STORE.wallets.staff[newStaff.id]=Number(newStaff.earnings||0);
+      }
+      if(evId && newStaff && STORE.assignTickets){
+        var ev=(STORE.events||[]).find(function(e){return e.id===evId;});
+        if(ev && ev.tickets && ev.tickets.length>0) STORE.assignTickets(evId,ev.tickets[0].name,10,newStaff.id);
+      }
+      admShowToast((newStaff&&newStaff.status==='pending')?'Staff submitted for Super Admin verification: '+name:'Staff created: '+name+' (@'+staffId+')');
+      if(STORE.addAdminLog) STORE.addAdminLog('Create Staff',name+' -- @'+staffId);
+    }
+    await loadAdminSnapshot().catch(function(err){console.error('Admin refresh after create failed:',err);});
+    admCloseModal('adminModal');
+    if(typeof admRefreshUsers==='function') admRefreshUsers();
+    if(typeof admRefreshRoles==='function') admRefreshRoles();
+    if(typeof admRefreshStaff==='function') admRefreshStaff();
+    if(typeof admRefreshAudit==='function') admRefreshAudit();
+  }catch(err){
+    var msg=err&&err.message?err.message:'Could not create account';
+    console.error('Invite create failed:',err);
+    setInviteError(msg);
+    admShowToast(msg);
+  }finally{
+    _inviteCreating = false;
+    resetInviteCreateButton();
+  }
+  return false;
 }
 
 function genInvitePwd(){
-  var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#';
-  var p=''; for(var i=0;i<12;i++) p+=chars[Math.floor(Math.random()*chars.length)];
+  var p=makeTempPassword(12);
   var el=document.getElementById('newAdmPwd'); if(el) el.value=p;
 }
+
+function bindInviteCreateButton(){
+  var btn=document.getElementById('iBtnCreate');
+  if(!btn || btn._vyberaBound) return;
+  btn._vyberaBound=true;
+  btn.addEventListener('click',function(evt){
+    inviteCreateAccount(evt);
+  },false);
+}
+
+document.addEventListener('DOMContentLoaded',bindInviteCreateButton,false);
+document.addEventListener('deviceready',bindInviteCreateButton,false);
 
 function admOpenModal(id){
   var m=document.getElementById(id); if(m){ m.style.display='flex'; }
@@ -9700,7 +9802,13 @@ var _scanEntries=0, _scanDupes=0, _scanInvalid=0;
 async function validateTicketQr(payload){
   if(!payload){showToast('Scan or paste a QR value');return;}
   try{
-    var token=localStorage.getItem('VYBERA_CREATOR_TOKEN')||localStorage.getItem('VYBERA_STAFF_TOKEN')||'';
+    var activePage=document.querySelector('.page.active');
+    var activeId=activePage&&activePage.id;
+    var staffToken=localStorage.getItem('VYBERA_STAFF_TOKEN')||'';
+    var creatorToken=localStorage.getItem('VYBERA_CREATOR_TOKEN')||'';
+    var token=(activeId==='page-staff-dashboard'||activeId==='page-staff-qr'||staffToken)
+      ? (staffToken||creatorToken)
+      : (creatorToken||staffToken);
     if(!token)throw new Error('Sign in as creator or staff before scanning tickets');
     var resp=await fetch(apiUrl('/bookings/scan'),{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({qrPayload:payload})});
     var data=await readAuthResponse(resp);
@@ -10632,14 +10740,14 @@ function showStaffOTPAfterLogin(){
         </div>
       </div>
       <div class="adm-card" style="overflow-x:auto;">
-        <table class="adm-table"><thead><tr><th>#</th><th>Name</th><th>Bookings</th><th>City</th><th>Status</th><th>Actions</th></tr></thead>
+        <table class="adm-table"><thead><tr><th>#</th><th>Name</th><th>Created</th><th>Bookings</th><th>City</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="buyersBody"></tbody></table>
       </div>
     </div>
 
     <div id="usec-creators" style="display:none;">
       <div class="adm-sec-hdr">
-        <div><div class="adm-sec-title">Creator Accounts</div></div>
+        <div><div class="adm-sec-title">Creator Accounts</div><div class="adm-sec-sub" id="creatorCountLbl" style="color:var(--adm-text2);"></div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <input class="adm-search" id="creatorSearch" placeholder="Search…" oninput="admFilterTable('creatorsBody',this.value)"/>
           <button class="adm-btn adm-btn-teal" onclick="admVerifyAllCreators()">Verify All Pending</button>
@@ -10647,7 +10755,7 @@ function showStaffOTPAfterLogin(){
         </div>
       </div>
       <div class="adm-card" style="overflow-x:auto;">
-        <table class="adm-table"><thead><tr><th>#</th><th>Name</th><th>Category</th><th>Events</th><th>Revenue</th><th>Fee %</th><th>Status</th><th>Actions</th></tr></thead>
+        <table class="adm-table"><thead><tr><th>#</th><th>Name</th><th>Created</th><th>Category</th><th>Events</th><th>Revenue</th><th>Fee %</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="creatorsBody"></tbody></table>
       </div>
     </div>
