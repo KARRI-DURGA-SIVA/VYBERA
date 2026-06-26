@@ -2717,7 +2717,9 @@ app.post("/admin/accounts", requireAdmin, requireSuperAdmin, async (req, res) =>
       return res.status(409).json({ error: "Admin email already exists" });
     }
     console.error("Admin account create failed:", err);
-    res.status(500).json({ error: "Could not create admin account" });
+    res.status(500).json({
+      error: err && err.message ? `Could not create admin account: ${err.message}` : "Could not create admin account",
+    });
   }
 });
 
@@ -2789,6 +2791,7 @@ app.post("/admin/staff", requireAdmin, async (req, res) => {
       password,
       role,
       assignedGate,
+      eventId,
       permissions,
       notes,
     } = req.body || {};
@@ -2805,9 +2808,11 @@ app.post("/admin/staff", requireAdmin, async (req, res) => {
     }
     const id = `STF-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
     const shareToken = `${cleanPathSegment(cleanStaffId, "staff")}-${crypto.randomBytes(4).toString("hex")}`;
+    const isCreatedBySuperAdmin = req.admin && req.admin.adminType === "super";
+    const initialStatus = isCreatedBySuperAdmin ? "active" : "pending";
     const result = await pool.query(
-      `INSERT INTO staff_accounts (id, creator_id, name, staff_id, email, phone, password, role, assigned_gate, share_token, created_by_admin_email)
-       VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      `INSERT INTO staff_accounts (id, creator_id, name, staff_id, email, phone, password, role, assigned_gate, primary_event_id, status, share_token, created_by_admin_email)
+       VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
       [
         id,
@@ -2818,6 +2823,8 @@ app.post("/admin/staff", requireAdmin, async (req, res) => {
         await bcrypt.hash(cleanPassword, 10),
         String(role || "Scanner").trim(),
         String(assignedGate || "").trim() || null,
+        eventId ? String(eventId).trim() : null,
+        initialStatus,
         shareToken,
         req.admin && req.admin.email ? String(req.admin.email).trim().toLowerCase() : null,
       ],
@@ -2836,7 +2843,9 @@ app.post("/admin/staff", requireAdmin, async (req, res) => {
         .json({ error: "Staff login ID or share link already exists" });
     }
     console.error("Admin staff create failed:", err);
-    res.status(500).json({ error: "Could not create staff account" });
+    res.status(500).json({
+      error: err && err.message ? `Could not create staff account: ${err.message}` : "Could not create staff account",
+    });
   }
 });
 
@@ -3087,8 +3096,8 @@ app.patch("/admin/creators/:creatorId/status", requireAdmin, requireSuperAdmin, 
     if (!Number.isInteger(creatorId) || creatorId < 1 || !status) {
       return res.status(400).json({ error: "creatorId and status are required" });
     }
-    if (!["Pending", "Approved", "Rejected"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
+    if (!["Pending", "Approved", "Rejected", "Suspended"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status. Must be Pending, Approved, Rejected, or Suspended" });
     }
     const result = await pool.query(
       `UPDATE creator_accounts
@@ -3141,8 +3150,18 @@ app.patch("/admin/staff/:staffId/status", requireAdmin, async (req, res) => {
     if (!staffId || !status) {
       return res.status(400).json({ error: "staffId and status are required" });
     }
-    if (status !== "active" && status !== "suspended") {
-      return res.status(400).json({ error: "Invalid status. Must be active or suspended" });
+    if (status !== "active" && status !== "suspended" && status !== "pending") {
+      return res.status(400).json({ error: "Invalid status. Must be active, pending, or suspended" });
+    }
+    const existing = await pool.query(
+      "SELECT * FROM staff_accounts WHERE id=$1",
+      [staffId],
+    );
+    if (!existing.rows.length) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+    if (existing.rows[0].status === "pending" && status === "active" && req.admin.adminType !== "super") {
+      return res.status(403).json({ error: "Super Admin verification is required to activate this staff member" });
     }
     const result = await pool.query(
       "UPDATE staff_accounts SET status=$1 WHERE id=$2 RETURNING *",
@@ -3304,11 +3323,11 @@ window.location.replace('/?payment=payu&booking=' + encodeURIComponent(${JSON.st
 </script>
 </body></html>`;
 
-const makeTicketQrPayload = (bookingId, token) =>
-  `VYBERA-TICKET|${bookingId}|${token}`;
+const makeTicketQrPayload = (bookingId, token, eventId = "") =>
+  `VYBERA-TICKET|${bookingId}|${eventId || "NOEVENT"}|${token}`;
 
 const ticketResponse = async (booking) => {
-  const qrPayload = makeTicketQrPayload(booking.id, booking.qr_token);
+  const qrPayload = makeTicketQrPayload(booking.id, booking.qr_token, booking.event_id);
   return {
     id: booking.id,
     buyerName: booking.buyer_name || booking.buyer_email || "BLAK Tickets Guest",
@@ -3788,9 +3807,12 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
   try {
     const payload = String((req.body && req.body.qrPayload) || "").trim();
     const parts = payload.split("|");
-    if (parts.length !== 3 || parts[0] !== "VYBERA-TICKET") {
+    if ((parts.length !== 3 && parts.length !== 4) || parts[0] !== "VYBERA-TICKET") {
       return res.status(400).json({ result: "invalid", error: "Invalid BLAK Tickets ticket QR" });
     }
+    const bookingId = parts[1];
+    const qrEventId = parts.length === 4 && parts[2] !== "NOEVENT" ? parts[2] : null;
+    const qrToken = parts.length === 4 ? parts[3] : parts[2];
     await client.query("BEGIN");
     const scanIdentity = req.scanIdentity || {};
     let result;
@@ -3798,9 +3820,12 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
       result = await client.query(
         `SELECT b.* FROM bookings b
          JOIN creator_events e ON e.id=b.event_id
-         WHERE b.id=$1 AND b.qr_token=$2 AND e.creator_id=$3
+         WHERE b.id=$1
+           AND b.qr_token=$2
+           AND ($4::text IS NULL OR b.event_id=$4)
+           AND e.creator_id=$3
          FOR UPDATE OF b`,
-        [parts[1], parts[2], scanIdentity.payload.sub],
+        [bookingId, qrToken, scanIdentity.payload.sub, qrEventId],
       );
     } else {
       result = await client.query(
@@ -3812,18 +3837,29 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
            ON st.id=$3 AND st.status='active'
          WHERE b.id=$1
            AND b.qr_token=$2
+           AND ($4::text IS NULL OR b.event_id=$4)
            AND st.id IS NOT NULL
            AND (
              sa.id IS NOT NULL
              OR st.primary_event_id=b.event_id
-             OR st.creator_id=e.creator_id
+             OR (st.creator_id IS NULL AND st.primary_event_id IS NULL)
            )
          FOR UPDATE OF b`,
-        [parts[1], parts[2], scanIdentity.payload.sub],
+        [bookingId, qrToken, scanIdentity.payload.sub, qrEventId],
       );
     }
     if (!result.rows.length) {
+      const ticketCheck = await client.query(
+        "SELECT id, event_id FROM bookings WHERE id=$1 AND qr_token=$2 AND ($3::text IS NULL OR event_id=$3) LIMIT 1",
+        [bookingId, qrToken, qrEventId],
+      );
       await client.query("ROLLBACK");
+      if (ticketCheck.rows.length && scanIdentity.type === "staff") {
+        return res.status(403).json({
+          result: "invalid",
+          error: "This staff account is not assigned to this event",
+        });
+      }
       return res.status(404).json({ result: "invalid", error: "Ticket not found" });
     }
     const booking = result.rows[0];
