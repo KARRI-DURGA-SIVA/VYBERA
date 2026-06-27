@@ -107,7 +107,8 @@ textarea.form-input{resize:vertical;min-height:100px;}
 .hero-content{position:absolute;bottom:0;left:0;right:0;padding:24px 20px;}
 .hero-tags{display:flex;gap:8px;margin-bottom:8px;}
 .hero-title{font-family:"Bebas Neue",sans-serif;font-size:40px;line-height:1.02;margin-bottom:8px;letter-spacing:2px;}
-.hero-meta{color:var(--grey);font-size:13px;margin:8px 0 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-right:8px;}
+.hero-meta{color:#fff;font-size:13px;margin:8px 0 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-right:8px;}
+.hero-meta span{color:#fff!important;}
 .hero-actions{display:flex;gap:10px;}
 .hero-actions .btn-ghost{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);color:#fff;backdrop-filter:blur(6px);}
 .hero-dots{position:absolute;bottom:116px;left:20px;display:flex;gap:6px;}
@@ -556,6 +557,21 @@ textarea.form-input{resize:vertical;min-height:100px;}
 
   .create-header{padding-top:14px!important;}
   .create-step{padding-left:16px!important;padding-right:16px!important;}
+  #page-create #evtHour,
+  #page-create #evtMinute,
+  #page-create #evtEndHour,
+  #page-create #evtEndMinute{
+    background:#f7f7f8!important;
+    border-color:#dadce0!important;
+    color:#111!important;
+  }
+  #page-create #evtHour option,
+  #page-create #evtMinute option,
+  #page-create #evtEndHour option,
+  #page-create #evtEndMinute option{
+    background:#fff!important;
+    color:#111!important;
+  }
   .cat-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;}
   .venue-map-canvas{height:min(360px,52vh)!important;}
   .venue-map-sheet{max-height:94svh!important;}
@@ -743,6 +759,19 @@ body.on-login #page-login button[onclick*="signInWithGoogle"] {
 .location-name{font-size:14px;font-weight:800;color:#111;}
 .location-meta{font-size:12px;color:#6b7280;margin-top:2px;line-height:1.35;}
 img.vylogo { background: transparent; mix-blend-mode: multiply; }
+@keyframes bltPageEnter{
+  from{opacity:0;transform:translateY(6px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@keyframes bltLogoEnter{
+  from{opacity:0;transform:scale(.94);}
+  to{opacity:1;transform:scale(1);}
+}
+.page.active{animation:bltPageEnter .22s cubic-bezier(.2,.8,.2,1);}
+#page-splash.active .vylogo{animation:bltLogoEnter .55s cubic-bezier(.2,.8,.2,1);}
+@media(prefers-reduced-motion:reduce){
+  .page.active,#page-splash.active .vylogo{animation:none!important;}
+}
 /* Prevent Space Mono font vertical cutting/clipping */
 [style*="Space Mono"], [style*="Space Mono"] *, .ticket-price, .tier-price, .price-badge, .kpi-value, .rev-value, .payout-amt, .qty-num {
   line-height: 1.35 !important;
@@ -2230,6 +2259,12 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
   <div style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:10px;font-weight:600;">KYC Documents</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
     <div style="padding:14px;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;text-align:center;cursor:pointer;" onclick="this.querySelector('input').click()">
+      <input type="file" accept=".pdf,.jpg,.png" style="display:none;" onchange="applyDocSelected(this,'pan')"/>
+      <div style="font-size:20px;margin-bottom:6px;">📄</div>
+      <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">PAN Card</div>
+      <div id="applyPanLabel" style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px;">Tap to upload</div>
+    </div>
+    <div style="padding:14px;background:rgba(255,255,255,0.04);border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;text-align:center;cursor:pointer;" onclick="this.querySelector('input').click()">
       <input type="file" accept=".pdf,.jpg,.png" style="display:none;" onchange="applyDocSelected(this,'aadhaar')"/>
       <div style="font-size:20px;margin-bottom:6px;">🪪</div>
       <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">Aadhaar / ID</div>
@@ -3418,7 +3453,7 @@ var STORE = {
     var tier = ev.tickets.find(function(t){ return t.name===ticketTier; });
     if(!tier) return null;
     var booking = {
-      id: 'VYB-' + Date.now(),
+      id: 'BLT-' + Date.now(),
       eventId: evId,
       eventName: ev.name,
       eventDate: ev.date,
@@ -4132,7 +4167,7 @@ async function payWithPayU(){
   if(!selected||getSelectedTicketRemaining()<totals.qty){ showToast('Not enough tickets available for this tier'); return; }
   if(totals.total<=0){ await showSuccess({gateway:'Free',status:'Success'}); return; }
   var buyer=getBuyerForPayment();
-  var bookingId='VYB-'+Date.now();
+  var bookingId='BLT-'+Date.now();
   var pending={
     bookingId:bookingId,
     eventId:CURRENT_EVENT.id,
@@ -4881,11 +4916,25 @@ function requestUserLocation(){
   openLocationSheet();
 }
 
-function requestCurrentUserLocation(silent){
+function ensureCurrentLocationPermission(){
+  if(!window.cordova||!window.cordova.plugins||!window.cordova.plugins.permissions)return Promise.resolve();
+  return new Promise(function(resolve,reject){
+    var permissions=window.cordova.plugins.permissions;
+    var fine=permissions.ACCESS_FINE_LOCATION||'android.permission.ACCESS_FINE_LOCATION';
+    var coarse=permissions.ACCESS_COARSE_LOCATION||'android.permission.ACCESS_COARSE_LOCATION';
+    var success=function(status){status&&status.hasPermission?resolve():reject(new Error('Location permission was denied. Allow it in app settings and try again.'));};
+    if(typeof permissions.requestPermissions==='function')permissions.requestPermissions([fine,coarse],success,reject);
+    else permissions.requestPermission(fine,success,reject);
+  });
+}
+
+async function requestCurrentUserLocation(silent){
   if(!navigator.geolocation){
-    if(!silent)openLocationSheet();
+    if(!silent)showToast('Location services are unavailable on this device');
     return;
   }
+  try{await ensureCurrentLocationPermission();}
+  catch(permissionError){if(!silent)showToast(permissionError.message||'Location permission was not enabled');return;}
   if(!silent)showToast('Fetching your location...');
   navigator.geolocation.getCurrentPosition(async function(position){
     try{
@@ -4899,12 +4948,13 @@ function requestCurrentUserLocation(silent){
       closeLocationSheet();
       if(!silent)showToast('Location enabled');
     }
-  },function(){
+  },function(error){
     if(!silent){
-      showToast('Location permission was not enabled');
+      var message=error&&error.code===1?'Location permission was denied':error&&error.code===2?'Current location is unavailable':error&&error.code===3?'Location request timed out':'Could not get current location';
+      showToast(message);
       openLocationSheet();
     }
-  },{enableHighAccuracy:true,timeout:9000});
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
 }
 
 function clearUserLocationFilter(){
@@ -7880,6 +7930,7 @@ function admRenderCreators(){
     var bc = verified?'green':pending?'yellow':'red';
     var statusLabel = creatorStatusLabel(c.status);
     var docs=(c.documents||[]).length;
+    var documentsVerified=docs>0&&(c.documents||[]).every(function(doc){return doc.verificationStatus==='Verified';});
     var created=admFormatAccountCreated(c.createdAt||c.joinedAt||c.ts||c.created_at);
     return '<tr onclick="admOpenCreatorReview(\''+escapeHtml(c.id)+'\')" style="cursor:pointer;">'
       +'<td style="color:var(--adm-text2);">'+(i+1)+'</td>'
@@ -7889,11 +7940,11 @@ function admRenderCreators(){
       +'<td>'+c.events+'</td>'
       +'<td style="font-size:11px;">₹'+c.revenue.toLocaleString('en-IN')+'</td>'
       +'<td><span style="font-size:12px;font-weight:600;color:var(--adm-text);">'+c.fee+'%</span></td>'
-      +'<td><span class="adm-badge '+bc+'">'+escapeHtml(statusLabel)+'</span><div style="font-size:10px;color:var(--adm-text2);margin-top:4px;">'+docs+' document'+(docs===1?'':'s')+'</div></td>'
+      +'<td><span class="adm-badge '+bc+'">'+escapeHtml(statusLabel)+'</span><div style="font-size:10px;color:var(--adm-text2);margin-top:4px;">'+docs+' document'+(docs===1?'':'s')+'</div>'
+      +(pending&&documentsVerified?'<button onclick="event.stopPropagation();admVerifyCreator(\''+escapeHtml(c.id)+'\')" class="adm-btn adm-btn-sm adm-btn-green" style="margin-top:6px;">Verify</button>':'')+'</td>'
       +'<td><div style="display:flex;gap:4px;" onclick="event.stopPropagation();">'
-      +(pending
-        ? '<button onclick="admOpenCreatorReview(\''+escapeHtml(c.id)+'\')" class="adm-btn adm-btn-sm adm-btn-teal">Review</button>'
-        : '<button onclick="admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>')
+      +'<button onclick="admOpenCreatorReview(\''+escapeHtml(c.id)+'\')" class="adm-btn adm-btn-sm adm-btn-teal">View Documents</button>'
+      +(!pending?'<button onclick="admAdjustFee(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Fee</button>':'')
       +(c.status==='Suspended'
         ? '<button onclick="admReinstateCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm adm-btn-green">Reinstate</button>'
         : '<button onclick="admSuspendCreator(\''+c.id+'\')" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>')
@@ -7969,16 +8020,40 @@ function admCreatorDocumentHtml(doc){
   var url=doc&&doc.url?apiUrl(doc.url):'';
   var type=String((doc&&doc.documentType)||'Document').toUpperCase();
   var name=(doc&&doc.fileName)||type;
+  var verified=doc&&doc.verificationStatus==='Verified';
   if(!url){
     return '<div style="padding:12px;border:1px solid var(--adm-border);border-radius:8px;color:var(--adm-text2);font-size:12px;">'+escapeHtml(name)+' unavailable</div>';
   }
   var isImage=/^image\//i.test(doc.contentType||'') || /\.(png|jpe?g|webp|gif)$/i.test(name);
-  return '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;border:1px solid var(--adm-border);border-radius:8px;overflow:hidden;background:var(--adm-bg2);">'
-    +(isImage?'<img src="'+escapeHtml(url)+'" alt="'+escapeHtml(name)+'" style="width:100%;height:150px;object-fit:cover;display:block;background:#000;">':'')
+  return '<div style="display:block;border:1px solid '+(verified?'rgba(34,197,94,.45)':'var(--adm-border)')+';border-radius:8px;overflow:hidden;background:var(--adm-bg2);">'
+    +(isImage?'<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener"><img src="'+escapeHtml(url)+'" alt="'+escapeHtml(name)+'" style="width:100%;height:150px;object-fit:cover;display:block;background:#000;"></a>':'')
     +'<div style="padding:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">'
     +'<div style="min-width:0;"><div style="font-size:11px;font-weight:800;color:var(--adm-text);">'+escapeHtml(type)+'</div><div style="font-size:10px;color:var(--adm-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(name)+'</div></div>'
-    +'<span class="adm-btn adm-btn-sm adm-btn-ghost" style="pointer-events:none;">Open</span>'
-    +'</div></a>';
+    +'<div style="display:flex;gap:5px;align-items:center;"><a href="'+escapeHtml(url)+'" target="_blank" rel="noopener" class="adm-btn adm-btn-sm adm-btn-ghost" style="text-decoration:none;">Open</a>'
+    +(verified?'<span class="adm-badge green">Verified</span>':'<button data-verify-doc="'+escapeHtml(doc.id)+'" class="adm-btn adm-btn-sm adm-btn-green">Mark Verified</button>')
+    +'</div></div></div>';
+}
+
+async function admVerifyCreatorDocument(c,documentId){
+  try{
+    var resp=await fetch(apiUrl('/admin/creators/'+encodeURIComponent(c.id)+'/documents/'+encodeURIComponent(documentId)+'/status'),{
+      method:'PATCH',headers:adminAuthHeaders(),body:JSON.stringify({status:'Verified'})
+    });
+    var data=await readAuthResponse(resp);
+    if(!resp.ok)throw new Error(data.error||'Could not verify document');
+    var index=(c.documents||[]).findIndex(function(doc){return String(doc.id)===String(documentId);});
+    if(index>=0)c.documents[index]=data.document;
+    STORE.addAdminLog('Verify Creator Document',c.name+' - '+((data.document||{}).documentType||'Document'));
+    admRenderCreators();
+    admShowToast('Document verified');
+    admShowCreatorReviewModal(c);
+  }catch(err){admShowToast(err.message||'Could not verify document');}
+}
+
+function admGoToRecentActivity(){
+  var modal=document.getElementById('creatorKycReviewModal');if(modal)modal.remove();
+  admNav('dashboard',document.getElementById('admnav-dashboard'));
+  setTimeout(function(){var feed=document.getElementById('admLiveFeed');if(feed)feed.scrollIntoView({behavior:'smooth',block:'center'});},80);
 }
 
 async function admOpenCreatorReview(id){
@@ -8000,13 +8075,14 @@ function admShowCreatorReviewModal(c){
   var existing=document.getElementById('creatorKycReviewModal');
   if(existing)existing.remove();
   var docs=Array.isArray(c.documents)?c.documents:[];
+  var allDocsVerified=docs.length>0&&docs.every(function(doc){return doc.verificationStatus==='Verified';});
   var modal=document.createElement('div');
   modal.id='creatorKycReviewModal';
   modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.74);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;';
   modal.innerHTML='<div style="width:100%;max-width:760px;max-height:90vh;overflow:auto;background:var(--adm-bg);border:1px solid var(--adm-border);border-radius:16px;padding:18px;box-shadow:0 20px 80px rgba(0,0,0,.65);font-family:\'DM Sans\',sans-serif;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;">'
     +'<div><div style="font-size:18px;font-weight:900;color:var(--adm-text);">Creator KYC Review</div><div style="font-size:12px;color:var(--adm-text2);margin-top:4px;">Check submitted files before verification</div></div>'
-    +'<button data-close="1" class="adm-btn adm-btn-sm adm-btn-ghost">Close</button></div>'
+    +'<button data-close="1" class="adm-btn adm-btn-sm adm-btn-ghost" aria-label="Close">&#215;</button></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
     +'<div style="padding:10px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:8px;"><div style="font-size:10px;color:var(--adm-text2);text-transform:uppercase;">Name</div><div style="font-weight:800;color:var(--adm-text);">'+escapeHtml(c.name)+'</div></div>'
     +'<div style="padding:10px;background:var(--adm-bg2);border:1px solid var(--adm-border);border-radius:8px;"><div style="font-size:10px;color:var(--adm-text2);text-transform:uppercase;">Email</div><div style="font-weight:800;color:var(--adm-text);word-break:break-word;">'+escapeHtml(c.email)+'</div></div>'
@@ -8016,13 +8092,18 @@ function admShowCreatorReviewModal(c){
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px;">'
     +(docs.length?docs.map(admCreatorDocumentHtml).join(''):'<div style="grid-column:1/-1;padding:18px;border:1px solid var(--adm-border);border-radius:8px;color:var(--adm-text2);text-align:center;">No documents found for this creator.</div>')
     +'</div>'
-    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">'
-    +(c.status==='Pending'?'<button data-reject="1" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Reject</button><button data-verify="1" class="adm-btn adm-btn-sm adm-btn-green">Verify Creator</button>':'<button data-verify="1" class="adm-btn adm-btn-sm adm-btn-green">Mark Verified</button>')
-    +'</div></div>';
+    +(!allDocsVerified?'<div style="font-size:11px;color:#eab308;margin-bottom:10px;">Verify every submitted document to enable creator verification.</div>':'<div style="font-size:11px;color:#22c55e;margin-bottom:10px;">All submitted documents are verified. Close this review and verify the creator from the Status column.</div>')
+    +'<div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;">'
+    +'<button data-recent="1" class="adm-btn adm-btn-sm adm-btn-ghost">&#8592; Back to Recent Activity</button><div style="display:flex;gap:8px;">'
+    +(c.status==='Approved'?'<span class="adm-badge green" style="align-self:center;">Creator Verified</span>':'<button data-reject="1" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Reject</button>')
+    +(allDocsVerified?'<button data-done="1" class="adm-btn adm-btn-sm adm-btn-green">Done</button>':'')
+    +'</div></div></div></div>';
   document.body.appendChild(modal);
   function close(){modal.remove();}
   modal.addEventListener('click',function(e){if(e.target===modal||e.target.closest('[data-close]'))close();});
-  modal.querySelector('[data-verify]').addEventListener('click',async function(){await admVerifyCreator(c.id);close();});
+  modal.querySelectorAll('[data-verify-doc]').forEach(function(button){button.addEventListener('click',function(){admVerifyCreatorDocument(c,button.getAttribute('data-verify-doc'));});});
+  var recent=modal.querySelector('[data-recent]');if(recent)recent.addEventListener('click',admGoToRecentActivity);
+  var done=modal.querySelector('[data-done]');if(done)done.addEventListener('click',close);
   var reject=modal.querySelector('[data-reject]');
   if(reject)reject.addEventListener('click',async function(){await admRejectCreator(c.id);close();});
 }
@@ -8046,8 +8127,10 @@ async function admVerifyCreator(id){
     if(typeof admRenderApplications==='function')admRenderApplications();
     admShowToast('✅ Creator verified: '+c.name);
     STORE.addAdminLog('Verify Creator',c.name);
+    return true;
   }catch(err){
     admShowToast(err.message||'Could not verify creator');
+    return false;
   }
 }
 async function admRejectCreator(id){
@@ -10608,14 +10691,14 @@ async function submitCreatorApplication(){
     VyberaEventBus.emit('creator_application', {name:name, email:email, category:cat});
     STORE.addAdminLog('Creator Application', name + ' — ' + cat);
 
-    _applyDocs = {aadhaar:null, gst:null, bank:null};
+    _applyDocs = {pan:null, aadhaar:null, gst:null, bank:null};
     var m = document.getElementById('creatorApplyModal');
     if(m) m.style.display = 'none';
     ['applyName','applyEmail','applyPhone','applyAbout','applyPassword'].forEach(function(id){
       var e = document.getElementById(id); if(e) e.value='';
     });
     document.querySelectorAll('#creatorApplyModal input[type="file"]').forEach(function(input){ input.value=''; });
-    [['applyAadhaarLabel','Tap to upload'],['applyGSTLabel','Tap to upload'],['applyBankLabel','Tap to upload']].forEach(function(item){
+    [['applyPanLabel','Tap to upload'],['applyAadhaarLabel','Tap to upload'],['applyGSTLabel','Tap to upload'],['applyBankLabel','Tap to upload']].forEach(function(item){
       var label=document.getElementById(item[0]); if(label){label.textContent=item[1];label.style.color='rgba(255,255,255,0.35)';}
     });
     var loginEmail=document.getElementById('creatorLoginEmail'); if(loginEmail) loginEmail.value=email;
@@ -11121,14 +11204,14 @@ function addRecentScan(b, num){
 
 
 // ── KYC doc upload handler ──
-var _applyDocs = {aadhaar:null, gst:null, bank:null};
+var _applyDocs = {pan:null, aadhaar:null, gst:null, bank:null};
 
 function applyDocSelected(input, type){
   var file = input.files[0];
   if(!file) return;
   if(file.size > 8 * 1024 * 1024){ showToast('Each KYC document must be 8 MB or smaller'); input.value=''; return; }
   _applyDocs[type] = file;
-  var labelId = {aadhaar:'applyAadhaarLabel', gst:'applyGSTLabel', bank:'applyBankLabel'}[type];
+  var labelId = {pan:'applyPanLabel', aadhaar:'applyAadhaarLabel', gst:'applyGSTLabel', bank:'applyBankLabel'}[type];
   var el = document.getElementById(labelId);
   if(el){ el.textContent = '✅ ' + file.name.substring(0,20); el.style.color='#4ade80'; }
 }

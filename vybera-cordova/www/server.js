@@ -253,6 +253,9 @@ const publicCreatorKycDocument = (document) => ({
   contentType: document.content_type,
   storage: document.storage,
   url: creatorKycDocumentUrl(document),
+  verificationStatus: document.verification_status || "Pending",
+  verifiedAt: document.verified_at,
+  verifiedBy: document.verified_by,
   createdAt: document.created_at,
 });
 
@@ -825,6 +828,13 @@ const initDb = async () => {
       content_type TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE creator_kyc_documents
+      ADD COLUMN IF NOT EXISTS verification_status TEXT NOT NULL DEFAULT 'Pending',
+      ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS verified_by TEXT
   `);
 
   await pool.query(`
@@ -3038,6 +3048,36 @@ app.get("/admin/creators/:creatorId", requireAdmin, requireSuperAdmin, async (re
   }
 });
 
+app.patch("/admin/creators/:creatorId/documents/:documentId/status", requireAdmin, requireSuperAdmin, async (req, res) => {
+  try {
+    const creatorId = Number(String(req.params.creatorId || "").replace(/^CRT-/i, ""));
+    const documentId = Number(req.params.documentId);
+    const status = String((req.body || {}).status || "").trim();
+    if (!Number.isInteger(creatorId) || creatorId < 1 || !Number.isInteger(documentId) || documentId < 1) {
+      return res.status(400).json({ error: "Valid creatorId and documentId are required" });
+    }
+    if (!["Pending", "Verified"].includes(status)) {
+      return res.status(400).json({ error: "Document status must be Pending or Verified" });
+    }
+    const result = await pool.query(
+      `UPDATE creator_kyc_documents
+       SET verification_status=$1,
+           verified_at=CASE WHEN $1='Verified' THEN NOW() ELSE NULL END,
+           verified_by=CASE WHEN $1='Verified' THEN $2 ELSE NULL END
+       WHERE id=$3 AND creator_id=$4
+       RETURNING *`,
+      [status, req.admin.email || String(req.admin.sub || "Super Admin"), documentId, creatorId],
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Creator document not found" });
+    }
+    res.json({ success: true, document: publicCreatorKycDocument(result.rows[0]) });
+  } catch (err) {
+    console.error("Creator document verification failed:", err);
+    res.status(500).json({ error: "Could not update document verification" });
+  }
+});
+
 app.patch("/admin/creators/:creatorId/status", requireAdmin, requireSuperAdmin, async (req, res) => {
   try {
     const rawCreatorId = String(req.params.creatorId || "").replace(/^CRT-/i, "");
@@ -3048,6 +3088,19 @@ app.patch("/admin/creators/:creatorId/status", requireAdmin, requireSuperAdmin, 
     }
     if (!["Pending", "Approved", "Rejected", "Suspended"].includes(status)) {
       return res.status(400).json({ error: "Invalid status. Must be Pending, Approved, Rejected, or Suspended" });
+    }
+    if (status === "Approved") {
+      const documentCheck = await pool.query(
+        `SELECT COUNT(*)::INTEGER AS total,
+          COUNT(*) FILTER (WHERE verification_status='Verified')::INTEGER AS verified
+         FROM creator_kyc_documents
+         WHERE creator_id=$1`,
+        [creatorId],
+      );
+      const counts = documentCheck.rows[0] || { total: 0, verified: 0 };
+      if (!counts.total || counts.verified !== counts.total) {
+        return res.status(409).json({ error: "Verify every submitted document before verifying the creator" });
+      }
     }
     const result = await pool.query(
       `UPDATE creator_accounts
@@ -3075,6 +3128,24 @@ app.patch("/admin/creators/status-by-email", requireAdmin, requireSuperAdmin, as
     }
     if (!["Pending", "Approved", "Rejected"].includes(status)) {
       return res.status(400).json({ error: "Invalid status. Must be Pending, Approved, or Rejected" });
+    }
+    if (status === "Approved") {
+      const documentCheck = await pool.query(
+        `SELECT c.id, COUNT(d.id)::INTEGER AS total,
+          COUNT(d.id) FILTER (WHERE d.verification_status='Verified')::INTEGER AS verified
+         FROM creator_accounts c
+         LEFT JOIN creator_kyc_documents d ON d.creator_id=c.id
+         WHERE LOWER(c.email)=LOWER($1)
+         GROUP BY c.id`,
+        [email],
+      );
+      if (!documentCheck.rows.length) {
+        return res.status(404).json({ error: "Creator account not found" });
+      }
+      const counts = documentCheck.rows[0];
+      if (!counts.total || counts.verified !== counts.total) {
+        return res.status(409).json({ error: "Verify every submitted document before verifying the creator" });
+      }
     }
     const result = await pool.query(
       `UPDATE creator_accounts

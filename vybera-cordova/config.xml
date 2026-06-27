@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="com.vybera.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-    <name>VYBERA</name>
+    <name>BLAK Tickets</name>
     <description>
-        VYBERA event discovery and booking app.
+        BLAK Tickets event discovery and booking app.
     </description>
     <author email="support@vybera.in" href="https://vybera.in">
-        VYBERA
+        BLAK Tickets
     </author>
     <content src="index.html" />
     <preference name="AndroidXEnabled" value="true" />
@@ -14,9 +14,18 @@
     <preference name="Fullscreen" value="false" />
     <preference name="StatusBarBackgroundColor" value="#000000" />
     <preference name="StatusBarStyle" value="lightcontent" />
+    <preference name="AndroidWindowSplashScreenBackground" value="#FFFFFF" />
+    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="resources/android/splash-icon.png" />
+    <icon src="resources/icon.png" />
     <preference name="android-targetSdkVersion" value="36" />
     <preference name="GoogleSignInClientId" value="544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com" />
     <platform name="android">
+        <icon density="ldpi" src="resources/android/icon-ldpi.png" />
+        <icon density="mdpi" src="resources/android/icon-mdpi.png" />
+        <icon density="hdpi" src="resources/android/icon-hdpi.png" />
+        <icon density="xhdpi" src="resources/android/icon-xhdpi.png" />
+        <icon density="xxhdpi" src="resources/android/icon-xxhdpi.png" />
+        <icon density="xxxhdpi" src="resources/android/icon-xxxhdpi.png" />
         <config-file parent="/manifest" target="AndroidManifest.xml">
             <uses-permission android:name="android.permission.CAMERA" />
             <uses-feature android:name="android.hardware.camera" android:required="false" />

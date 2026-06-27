@@ -1,8 +1,8 @@
 {
   "name": "com.vybera.app",
-  "displayName": "VYBERA",
+  "displayName": "BLAK Tickets",
   "version": "1.0.0",
-  "description": "A sample Apache Cordova application that responds to the deviceready event.",
+  "description": "BLAK Tickets event discovery and booking app.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
