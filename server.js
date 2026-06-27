@@ -4104,26 +4104,42 @@ app.post("/social-login", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const cleanEmail = String(email || "").trim().toLowerCase();
-    if (!cleanEmail || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+    const identifier = String(email || "").trim();
+    const cleanEmail = identifier.toLowerCase();
+    const phoneDigits = identifier.replace(/\D/g, "");
+    const cleanPhone = /^[+\d\s()-]+$/.test(identifier) && /^\d{10,12}$/.test(phoneDigits)
+      ? phoneDigits
+      : "";
+    if (!identifier || !password) {
+      return res.status(400).json({ error: "Email or phone and password are required" });
     }
     const result = await pool.query(
       `SELECT id, username, first_name, last_name, email, phone, country_code, city,
         profile_image_url, profile_image_key, profile_image_storage, password, status
-      FROM users WHERE email=$1`,
-      [cleanEmail],
+      FROM users
+      WHERE LOWER(email)=LOWER($1)
+        OR ($2 <> '' AND (
+          REGEXP_REPLACE(COALESCE(country_code,'') || COALESCE(phone,''), '\\D', '', 'g')=$2
+          OR REGEXP_REPLACE(COALESCE(phone,''), '\\D', '', 'g')=RIGHT($2,10)
+        ))
+      ORDER BY created_at DESC`,
+      [cleanEmail, cleanPhone],
     );
     if (result.rows.length === 0) {
       return res.status(400).json({ error: "User not found" });
     }
-    const user = result.rows[0];
+    let user = null;
+    for (const candidate of result.rows) {
+      if (await bcrypt.compare(password, candidate.password)) {
+        user = candidate;
+        break;
+      }
+    }
+    if (!user) {
+      return res.status(400).json({ error: "Invalid password" });
+    }
     if (!isUserActive(user.status)) {
       return res.status(404).json({ error: USER_NOT_FOUND_ERROR });
-    }
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(400).json({ error: "Invalid password" });
     }
     res.json({
       message: "Login successful",

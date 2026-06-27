@@ -451,10 +451,18 @@ body.on-creator-login #page-creator-login button:not(.cta-full){
   border-color:#dadce0!important;
   color:#202124!important;
 }
-body.on-login #tab-signup{
+body.on-login #page-login .auth-tab{
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
   background:transparent!important;
   border-color:transparent!important;
   color:#5f6368!important;
+}
+body.on-login #page-login .auth-tab.active{
+  background:var(--red)!important;
+  color:#fff!important;
+  box-shadow:0 2px 12px rgba(229,9,20,0.4)!important;
 }
 body.on-login #page-login .form-input,
 body.on-creator-login #page-creator-login .form-input{
@@ -665,11 +673,11 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
 
   <!-- Toggle pill -->
   <div style="margin:0 28px 28px;display:flex;background:rgba(255,255,255,0.06);border-radius:50px;padding:3px;border:1px solid rgba(255,255,255,0.08);">
-    <button id="tab-signin" onclick="switchAuthTab('signin')"
+    <button class="auth-tab active" id="tab-signin" onclick="switchAuthTab('signin')"
       style="flex:1;padding:9px 0;border:none;border-radius:50px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:.3px;transition:all .3s;background:var(--red);color:#fff;box-shadow:0 2px 12px rgba(229,9,20,0.4);">
       Sign In
     </button>
-    <button id="tab-signup" onclick="switchAuthTab('signup')"
+    <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')"
       style="flex:1;padding:9px 0;border:none;border-radius:50px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:.3px;transition:all .3s;background:transparent;color:rgba(255,255,255,0.4);">
       Sign Up
     </button>
@@ -2339,6 +2347,8 @@ function switchAuthTab(tab){
   var tsu=document.getElementById('tab-signup');
   var ht=document.getElementById('authHeroTitle');
   var hs=document.getElementById('authHeroSub');
+  if(tsi) tsi.classList.toggle('active',tab==='signin');
+  if(tsu) tsu.classList.toggle('active',tab==='signup');
   if(tab==='signin'){
     if(si)si.style.display='block';if(su)su.style.display='none';
     if(tsi){tsi.style.background='var(--red)';tsi.style.color='#fff';tsi.style.boxShadow='0 2px 12px rgba(229,9,20,0.4)';}
@@ -7472,7 +7482,7 @@ function admDrawCreatorLeaderboard(){
 function admRefreshUsers(){ admUserTab('buyers'); }
 
 function admUserTab(tab){
-  ['buyers','creators'].forEach(function(t){
+  ['buyers','creators','users'].forEach(function(t){
     var sec = document.getElementById('usec-'+t);
     var btn = document.getElementById('utab-'+t);
     if(sec) sec.style.display = t===tab?'block':'none';
@@ -7480,6 +7490,7 @@ function admUserTab(tab){
   });
   if(tab==='buyers') admRenderBuyers();
   if(tab==='creators') admRenderCreators();
+  if(tab==='users') admRenderAllUsers();
 }
 
 var admBuyersList = [];
@@ -7511,6 +7522,38 @@ function admRenderBuyers(){
         : '<button onclick="admReinstateUser(\''+b.id+'\')" class="adm-btn adm-btn-sm adm-btn-green">Reinstate</button>')
       +'<button onclick="admNotifyUser(\''+b.name+'\')" class="adm-btn adm-btn-sm adm-btn-ghost">Notify</button>'
       +'</div></td></tr>';
+  }).join('');
+}
+
+function admRenderAllUsers(){
+  var tbody=document.getElementById('allUsersBody');
+  var lbl=document.getElementById('allUsersCountLbl');
+  if(!tbody) return;
+  var buyers=(admBuyersList||[]).map(function(user){
+    return {id:user.id,name:user.name,email:user.email,createdAt:user.createdAt||user.created_at,status:user.status,type:'Buyer',source:'buyer'};
+  });
+  var creators=(admCreatorsList||[]).map(function(user){
+    return {id:user.id,name:user.name,email:user.email,createdAt:user.createdAt||user.joinedAt||user.ts||user.created_at,status:creatorStatusLabel(user.status),type:'Creator',source:'creator'};
+  });
+  var users=buyers.concat(creators).sort(function(a,b){
+    return new Date(b.createdAt||0).getTime()-new Date(a.createdAt||0).getTime();
+  });
+  if(lbl) lbl.textContent=users.length+' registered users';
+  tbody.innerHTML=users.map(function(user,index){
+    var suspended=String(user.status).toLowerCase()==='suspended';
+    var encodedId=encodeURIComponent(String(user.id)).replace(/'/g,'%27');
+    var encodedName=encodeURIComponent(String(user.name||'User')).replace(/'/g,'%27');
+    var action=user.source==='buyer'
+      ? (suspended
+        ? '<button onclick="admReinstateUser(decodeURIComponent(\''+encodedId+'\'))" class="adm-btn adm-btn-sm adm-btn-green">Reinstate</button>'
+        : '<button onclick="admSuspendBuyer(decodeURIComponent(\''+encodedId+'\'))" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>')
+      : (suspended?'':'<button onclick="admSuspendCreator(decodeURIComponent(\''+encodedId+'\'))" class="adm-btn adm-btn-sm" style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Suspend</button>');
+    return '<tr><td style="color:var(--adm-text2);">'+(index+1)+'</td>'
+      +'<td><div style="font-weight:600;color:var(--adm-text);">'+escapeHtml(user.name||'User')+'</div><div style="font-size:10px;color:var(--adm-text2);">'+escapeHtml(user.email||'')+'</div></td>'
+      +'<td><span class="adm-badge blue">'+user.type+'</span></td>'
+      +'<td><div style="font-size:11px;color:var(--adm-text2);white-space:nowrap;">'+escapeHtml(admFormatAccountCreated(user.createdAt))+'</div></td>'
+      +'<td><span class="adm-badge '+(suspended?'red':'green')+'">'+escapeHtml(user.status||'Active')+'</span></td>'
+      +'<td><div style="display:flex;gap:4px;">'+action+'<button onclick="admNotifyUser(decodeURIComponent(\''+encodedName+'\'))" class="adm-btn adm-btn-sm adm-btn-ghost">Notify</button></div></td></tr>';
   }).join('');
 }
 
@@ -7561,6 +7604,7 @@ async function admSetBuyerStatus(id,status){
     if(!resp.ok) throw new Error(data.error||'Could not update user status');
     u.status=status;
     admRenderBuyers();
+    admRenderAllUsers();
     admShowToast(status==='Suspended'?'User suspended: '+u.name:'User reinstated: '+u.name);
     STORE.addAdminLog(status==='Suspended'?'Suspend Buyer':'Reinstate User',u.name);
   }catch(err){
@@ -9487,6 +9531,7 @@ function admSuspendCreator(id){
   if(!c || !confirm('Suspend ' + c.name + '? All their events will be paused.')) return;
   c.status = 'Suspended';
   admRenderCreators();
+  admRenderAllUsers();
   admShowToast('Creator suspended: ' + c.name);
   STORE.addAdminLog('Suspend Creator', c.name);
   // Pause all their events
@@ -11430,6 +11475,7 @@ function showStaffOTPAfterLogin(){
     <div class="adm-tabs">
       <button class="adm-tab active" id="utab-buyers"   onclick="admUserTab('buyers')">Buyers</button>
       <button class="adm-tab"        id="utab-creators" onclick="admUserTab('creators')">Creators</button>
+      <button class="adm-tab"        id="utab-users"    onclick="admUserTab('users')">Users</button>
     </div>
 
     <div id="usec-buyers">
@@ -11458,6 +11504,20 @@ function showStaffOTPAfterLogin(){
       <div class="adm-card" style="overflow-x:auto;">
         <table class="adm-table"><thead><tr><th>#</th><th>Name</th><th>Created</th><th>Category</th><th>Events</th><th>Revenue</th><th>Fee %</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="creatorsBody"></tbody></table>
+      </div>
+    </div>
+
+    <div id="usec-users" style="display:none;">
+      <div class="adm-sec-hdr">
+        <div><div class="adm-sec-title">All User Accounts</div><div class="adm-sec-sub" id="allUsersCountLbl" style="color:var(--adm-text2);"></div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <input class="adm-search" id="allUsersSearch" placeholder="Search…" oninput="admFilterTable('allUsersBody',this.value)"/>
+          <button class="adm-btn adm-btn-ghost" onclick="admExport('users')">Export</button>
+        </div>
+      </div>
+      <div class="adm-card" style="overflow-x:auto;">
+        <table class="adm-table"><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Created</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="allUsersBody"></tbody></table>
       </div>
     </div>
   </div>
