@@ -1106,7 +1106,7 @@ app.get("/google-token/fetch", (req, res) => {
 app.get("/google-auth-success", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Signed In – VYBERA</title>
+<title>Signed In - BLAK Tickets</title>
 <style>
   body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;
        background:#0a0a0a;font-family:sans-serif;color:#fff;flex-direction:column;gap:16px}
@@ -1116,7 +1116,7 @@ app.get("/google-auth-success", (req, res) => {
 </style></head><body>
 <div class="icon">✅</div>
 <h2>Signed in successfully!</h2>
-<p>You can close this tab and return to VYBERA.</p>
+<p>You can close this tab and return to BLAK Tickets.</p>
 </body></html>`);
 });
 
