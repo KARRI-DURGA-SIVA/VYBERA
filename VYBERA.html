@@ -3421,8 +3421,8 @@ function updateOrderSummary() {
   var s=document.getElementById('subtotal');if(s)s.textContent=sub===0?'Free':'₹'+sub.toLocaleString('en-IN');
   var f=document.getElementById('feeAmt');if(f)f.textContent=fee===0?'—':'₹'+fee.toLocaleString('en-IN');
   var g=document.getElementById('gstAmt');if(g)g.textContent=gst===0?'—':'₹'+gst.toLocaleString('en-IN');
-  var feeLabel=document.getElementById('feePctLabel');if(feeLabel)feeLabel.textContent='Convenience fee (8%)';
-  var gstLabel=document.getElementById('gstPctLabel');if(gstLabel)gstLabel.textContent='GST on convenience fee (18%)';
+  var feeLabel=document.getElementById('feePctLabel');if(feeLabel)feeLabel.textContent='Convenience fee ('+totals.feeRate+'%)';
+  var gstLabel=document.getElementById('gstPctLabel');if(gstLabel)gstLabel.textContent='GST on convenience fee ('+totals.gstRate+'%)';
   var discountRow=document.getElementById('discountRow');
   var discountAmt=document.getElementById('discountAmt');
   var couponLabel=document.getElementById('couponLabel');
@@ -3441,14 +3441,18 @@ function updateOrderSummary() {
 
 function getCurrentBookingTotals(){
   var selected = document.querySelector('.ticket-option.selected');
-  var price = selected ? parseInt(selected.getAttribute('data-price')||0,10) : 0;
+  var price = selected ? Number(selected.getAttribute('data-price')||0) : 0;
   var q = qty||1;
   var subtotal = price*q;
   var discount = calculateCouponDiscount(subtotal);
   var taxableSubtotal=Math.max(0,subtotal-discount);
-  var fee = taxableSubtotal>0 ? Math.round(taxableSubtotal*0.08) : 0;
-  var gst = fee>0 ? Math.round(fee*0.18) : 0;
-  return {price:price, qty:q, subtotal:subtotal, discount:discount, fee:fee, gst:gst, total:taxableSubtotal+fee+gst};
+  var cfg=STORE.platformConfig||{baseFee:8,gst:18};
+  var feeRate=Math.max(0,Number(cfg.baseFee)||0);
+  var gstRate=Math.max(0,Number(cfg.gst)||0);
+  var fee = taxableSubtotal>0 ? Math.round(taxableSubtotal*(feeRate/100)*100)/100 : 0;
+  var gst = fee>0 ? Math.round(fee*(gstRate/100)*100)/100 : 0;
+  var total=Math.round((taxableSubtotal+fee+gst)*100)/100;
+  return {price:price, qty:q, subtotal:subtotal, discount:discount, fee:fee, gst:gst, total:total, feeRate:feeRate, gstRate:gstRate};
 }
 
 function calculateCouponDiscount(subtotal){
