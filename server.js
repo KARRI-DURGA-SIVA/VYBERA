@@ -4049,7 +4049,12 @@ const sendSignupOtp = async (req, res) => {
     });
     const data = await response.json().catch(() => ({}));
     assertProviderSuccess(response, data, "Twilio OTP send failed");
-    res.json({ sent: true, identifier, data });
+    if (data.status !== "pending") {
+      const err = new Error("Twilio did not confirm OTP delivery. Please try again.");
+      err.status = 502;
+      throw err;
+    }
+    return res.status(200).json({ sent: true, identifier, data });
   } catch (err) {
     console.error("Twilio OTP send failed:", err);
     res.status(err.status || 500).json({ sent: false, error: err.message || "Twilio OTP send failed" });
