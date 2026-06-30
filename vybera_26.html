@@ -783,13 +783,13 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
           <input id="suPhone" type="tel" placeholder="98765 43210" class="form-input" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:14px;padding:14px 16px;font-size:14px;"/>
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;">
-          <button id="sendOtpBtn" type="button" onclick="sendSignupOtp()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(0,212,212,0.12);color:var(--neon);font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">Verify</button>
+          <button id="sendOtpBtn" type="button" onclick="sendSignupOtp()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(0,212,212,0.12);color:var(--neon);font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">Send OTP</button>
           <div id="otpInputWrap" style="display:none;flex:1;gap:8px;">
             <input id="signupOtp" type="text" inputmode="numeric" maxlength="6" placeholder="Enter OTP" class="form-input" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:10px;padding:10px 12px;font-size:13px;"/>
             <button id="verifyOtpBtn" type="button" onclick="verifySignupOtp()" style="padding:10px 14px;border:none;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">Submit</button>
           </div>
         </div>
-        <div id="signupOtpMsg" style="display:none;font-size:11px;margin-top:8px;"></div>
+        <div id="signupOtpMsg" role="status" aria-live="polite" style="display:none;font-size:11px;margin-top:8px;"></div>
       </div>
 
       <div style="margin-bottom:14px;">
@@ -2493,6 +2493,16 @@ function setSignupOtpBusy(btnId, busy, text){
   btn.style.opacity=busy?'.65':'1';
   if(text) btn.textContent=text;
 }
+function readSignupOtpResponse(resp){
+  return resp.text().then(function(text){
+    var body={};
+    if(text){
+      try{ body=JSON.parse(text); }
+      catch(err){ body={error:text}; }
+    }
+    return {resp:resp,body:body};
+  });
+}
 function sendSignupOtp(){
   var phone=normalizeSignupPhone();
   if(phone.countryCode!=='+91'){ setSignupOtpMsg('OTP is enabled for India +91 numbers.', false); return; }
@@ -2505,17 +2515,17 @@ function sendSignupOtp(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({identifier:phone.identifier})
-  }).then(function(resp){ return resp.json().then(function(body){ return {resp:resp, body:body}; }); })
+  }).then(readSignupOtpResponse)
     .then(function(result){
       if(!result.resp.ok || !result.body.sent) throw new Error(result.body.error || 'Could not send OTP');
       signupOtpState.reqId='sent';
       var wrap=document.getElementById('otpInputWrap'); if(wrap) wrap.style.display='flex';
       var inp=document.getElementById('signupOtp'); if(inp){ inp.value=''; inp.focus(); }
       setSignupOtpMsg('OTP sent to +' + phone.identifier + '.', true);
-      setSignupOtpBusy('sendOtpBtn',false,'Resend');
+      setSignupOtpBusy('sendOtpBtn',false,'Resend OTP');
     }).catch(function(err){
       setSignupOtpMsg(err.message||'Could not send OTP. Try again.', false);
-      setSignupOtpBusy('sendOtpBtn',false,'Verify');
+      setSignupOtpBusy('sendOtpBtn',false,'Send OTP');
     });
 }
 function verifySignupOtp(){
@@ -2529,7 +2539,7 @@ function verifySignupOtp(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({identifier:signupOtpState.identifier, otp:otp})
-  }).then(function(resp){ return resp.json().then(function(body){ return {resp:resp, body:body}; }); })
+  }).then(readSignupOtpResponse)
     .then(function(result){
       if(!result.resp.ok || !result.body.verified) throw new Error(result.body.error || 'Invalid OTP. Try again.');
       signupOtpState.accessToken=result.body.accessToken || '';

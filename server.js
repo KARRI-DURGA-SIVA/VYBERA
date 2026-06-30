@@ -94,10 +94,29 @@ const hasR2Config = () =>
   r2Config.accessKeyId &&
   r2Config.secretAccessKey;
 
+const cleanEnvValue = (value) => {
+  const cleaned = String(value || "").trim();
+  if (
+    cleaned.length >= 2 &&
+    ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+      (cleaned.startsWith("'") && cleaned.endsWith("'")))
+  ) {
+    return cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+};
+
+const twilioVerifyConfig = {
+  accountSid: cleanEnvValue(process.env.TWILIO_ACCOUNT_SID),
+  authToken: cleanEnvValue(process.env.TWILIO_AUTH_TOKEN),
+  serviceSid: cleanEnvValue(process.env.TWILIO_VERIFY_SERVICE_SID),
+  channel: cleanEnvValue(process.env.TWILIO_VERIFY_CHANNEL) || "sms",
+};
+
 const hasTwilioVerifyConfig = () =>
-  process.env.TWILIO_ACCOUNT_SID &&
-  process.env.TWILIO_AUTH_TOKEN &&
-  process.env.TWILIO_VERIFY_SERVICE_SID;
+  /^AC[a-fA-F0-9]{32}$/.test(twilioVerifyConfig.accountSid) &&
+  twilioVerifyConfig.authToken.length > 0 &&
+  /^VA[a-fA-F0-9]{32}$/.test(twilioVerifyConfig.serviceSid);
 
 if (!hasTwilioVerifyConfig()) {
   console.warn(
@@ -3959,15 +3978,18 @@ app.post("/bookings/scan", requireScanIdentity, async (req, res) => {
 
 const twilioVerifyUrl = (suffix = "") =>
   `https://verify.twilio.com/v2/Services/${encodeURIComponent(
-    process.env.TWILIO_VERIFY_SERVICE_SID || "",
+    twilioVerifyConfig.serviceSid,
   )}/Verification${suffix}`;
 
 const twilioAuthHeader = () =>
   `Basic ${Buffer.from(
-    `${process.env.TWILIO_ACCOUNT_SID || ""}:${process.env.TWILIO_AUTH_TOKEN || ""}`,
+    `${twilioVerifyConfig.accountSid}:${twilioVerifyConfig.authToken}`,
   ).toString("base64")}`;
 
-const providerErrorMessage = (data, fallback) => {
+const providerErrorMessage = (response, data, fallback) => {
+  if (response && response.status === 401) {
+    return "Twilio authentication failed. Update TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN, then restart the server.";
+  }
   if (!data || typeof data !== "object") return fallback;
   return data.message || data.error || data.error_message || data.description || fallback;
 };
@@ -3984,7 +4006,7 @@ const assertTwilioConfig = () => {
 
 const assertProviderSuccess = (response, data, fallback) => {
   if (!response.ok || data.error || data.error_message) {
-    const err = new Error(providerErrorMessage(data, fallback));
+    const err = new Error(providerErrorMessage(response, data, fallback));
     err.status = response.ok ? 400 : response.status;
     throw err;
   }
@@ -4015,7 +4037,7 @@ const sendSignupOtp = async (req, res) => {
     }
     const params = new URLSearchParams({
       To: `+${identifier}`,
-      Channel: process.env.TWILIO_VERIFY_CHANNEL || "sms",
+      Channel: twilioVerifyConfig.channel,
     });
     const response = await fetch(twilioVerifyUrl("s"), {
       method: "POST",
