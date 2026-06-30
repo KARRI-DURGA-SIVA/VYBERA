@@ -3988,7 +3988,7 @@ const twilioAuthHeader = () =>
 
 const providerErrorMessage = (response, data, fallback) => {
   if (response && response.status === 401) {
-    return "Twilio authentication failed. Update TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN, then restart the server.";
+    return "OTP service is temporarily unavailable. Please try again shortly.";
   }
   if (!data || typeof data !== "object") return fallback;
   return data.message || data.error || data.error_message || data.description || fallback;
@@ -4007,7 +4007,7 @@ const assertTwilioConfig = () => {
 const assertProviderSuccess = (response, data, fallback) => {
   if (!response.ok || data.error || data.error_message) {
     const err = new Error(providerErrorMessage(response, data, fallback));
-    err.status = response.ok ? 400 : response.status;
+    err.status = response.status === 401 ? 503 : response.ok ? 400 : response.status;
     throw err;
   }
 };
