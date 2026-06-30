@@ -782,9 +782,9 @@ window.VYBERA_GOOGLE_USE_REDIRECT=false;
           </select>
           <input id="suPhone" type="tel" placeholder="98765 43210" class="form-input" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:14px;padding:14px 16px;font-size:14px;"/>
         </div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:flex-start;">
           <button id="sendOtpBtn" type="button" onclick="sendSignupOtp()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(0,212,212,0.12);color:var(--neon);font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">Send OTP</button>
-          <div id="otpInputWrap" style="display:none;flex:1;gap:8px;">
+          <div id="otpInputWrap" style="display:none;flex:1 0 100%;gap:8px;">
             <input id="signupOtp" type="text" inputmode="numeric" maxlength="6" placeholder="Enter OTP" class="form-input" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:10px;padding:10px 12px;font-size:13px;"/>
             <button id="verifyOtpBtn" type="button" onclick="verifySignupOtp()" style="padding:10px 14px;border:none;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">Submit</button>
           </div>
@@ -2520,7 +2520,12 @@ function sendSignupOtp(){
       if(!result.resp.ok || !result.body.sent) throw new Error(result.body.error || 'Could not send OTP');
       signupOtpState.reqId='sent';
       var wrap=document.getElementById('otpInputWrap'); if(wrap) wrap.style.display='flex';
-      var inp=document.getElementById('signupOtp'); if(inp){ inp.value=''; inp.focus(); }
+      var inp=document.getElementById('signupOtp');
+      if(inp){
+        inp.value='';
+        if(wrap&&wrap.scrollIntoView) wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+        inp.focus();
+      }
       setSignupOtpMsg('OTP sent to +' + phone.identifier + '.', true);
       setSignupOtpBusy('sendOtpBtn',false,'Resend OTP');
     }).catch(function(err){
