@@ -1350,7 +1350,7 @@ app.post("/creator/applications", async (req, res) => {
         .json({ error: "Upload at least one KYC document" });
     }
     const existing = await client.query(
-      "SELECT 1 FROM creator_accounts WHERE email=$1",
+      "SELECT 1 FROM creator_accounts WHERE LOWER(email)=LOWER($1)",
       [cleanEmail],
     );
     if (existing.rows.length) {
@@ -1472,20 +1472,21 @@ app.post("/creator/login", async (req, res) => {
       `SELECT id, name, email, phone, category, about, password, kyc_status, created_at
        FROM creator_accounts
        WHERE LOWER(email)=LOWER($1)
-          OR LOWER(name)=LOWER($1)
-          OR LOWER(split_part(email, '@', 1))=LOWER(split_part($1, '@', 1))
+          OR ($2=FALSE AND (
+            LOWER(name)=LOWER($1)
+            OR LOWER(split_part(email, '@', 1))=LOWER($1)
+          ))
        ORDER BY CASE
           WHEN LOWER(email)=LOWER($1) THEN 0
           WHEN LOWER(name)=LOWER($1) THEN 1
           ELSE 2
-        END
-       LIMIT 1`,
-      [cleanEmail],
+        END, created_at DESC`,
+      [cleanEmail, cleanEmail.includes("@")],
     );
-    const creator = result.rows[0];
-    let validPassword = false;
-    if (creator) {
-      const storedPassword = String(creator.password || "");
+    let creator = null;
+    for (const candidate of result.rows) {
+      const storedPassword = String(candidate.password || "");
+      let validPassword = false;
       if (storedPassword.startsWith("$2")) {
         validPassword = await bcrypt.compare(password, storedPassword);
       } else {
@@ -1494,29 +1495,33 @@ app.post("/creator/login", async (req, res) => {
           const upgradedPassword = await bcrypt.hash(password, 10);
           await pool.query(
             "UPDATE creator_accounts SET password=$1 WHERE id=$2",
-            [upgradedPassword, creator.id],
+            [upgradedPassword, candidate.id],
           );
         }
       }
+      if (validPassword) {
+        creator = candidate;
+        break;
+      }
     }
-    if (!creator || !validPassword) {
+    if (!creator) {
       return res
         .status(401)
         .json({
           error: "Invalid creator email or password",
-          reason: creator ? "password_mismatch" : "creator_not_found",
-          loginReceived: loginIdentifier,
+          reason: result.rows.length ? "password_mismatch" : "creator_not_found",
         });
     }
-    if (creator.kyc_status !== "Approved") {
+    const creatorStatus = String(creator.kyc_status || "Pending");
+    if (creatorStatus.toLowerCase() !== "approved") {
       const message =
-        creator.kyc_status === "Rejected"
+        creatorStatus.toLowerCase() === "rejected"
           ? "Your creator application was rejected. Please contact support."
           : "Your creator account is pending super admin verification.";
       return res.status(403).json({
         error: message,
         reason: "creator_not_verified",
-        kycStatus: creator.kyc_status,
+        kycStatus: creatorStatus,
       });
     }
     res.json({
@@ -4527,8 +4532,10 @@ app.post("/auth/reset-password", async (req, res) => {
         sql: `UPDATE creator_accounts
               SET password=$1
               WHERE LOWER(email)=LOWER($2)
-                 OR LOWER(name)=LOWER($2)
-                 OR LOWER(split_part(email, '@', 1))=LOWER(split_part($2, '@', 1))
+                 OR ($2 NOT LIKE '%@%' AND (
+                   LOWER(name)=LOWER($2)
+                   OR LOWER(split_part(email, '@', 1))=LOWER($2)
+                 ))
               RETURNING id`,
         params: [hash, identifier],
       },
