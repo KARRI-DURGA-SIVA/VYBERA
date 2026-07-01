@@ -172,15 +172,19 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
     if (isCordovaWebView()) {
       markGooglePending();
       
-      // Use cordova-plugin-googleplus for direct Google Sign-In
+      // Native Android Google account chooser with Firebase credential
+      // verification. The APK signing certificate is registered in Firebase.
       if (window.plugins && window.plugins.googleplus) {
         window.plugins.googleplus.login(
           {
-            webClientId: '544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com',
-            offline: true
+            webClientId: firebaseConfig.oauthClientId,
+            offline: false
           },
           async (userData) => {
             try {
+              if (!userData || !userData.idToken) {
+                throw new Error('Google did not return a sign-in token.');
+              }
               const credential = GoogleAuthProvider.credential(userData.idToken);
               const userCredential = await signInWithCredential(auth, credential);
               await finishGoogleUser(userCredential.user);
@@ -193,7 +197,9 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
           (err) => {
             console.error('Google login failed:', err);
             clearGooglePending();
-            alert('Google sign-in failed: ' + (err.message || 'Please try again'));
+            const errorCode = err && err.message ? err.message : String(err || '');
+            if (errorCode === '12501') return;
+            alert('Google sign-in could not be completed. Please try again.');
           }
         );
         return;
@@ -253,7 +259,7 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
   }
 };
 
-// Always assign for Cordova WebView
+// Keep the native Google account chooser in Cordova; no browser handoff.
 window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
 
 window.vyberaFirebaseSignOut = function() {

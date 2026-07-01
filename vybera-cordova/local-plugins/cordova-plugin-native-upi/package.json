@@ -1,0 +1,10 @@
+{
+  "name": "cordova-plugin-native-upi",
+  "version": "1.0.0",
+  "description": "Native Android UPI payment result bridge for BLAK Tickets",
+  "cordova": {
+    "id": "cordova-plugin-native-upi",
+    "platforms": ["android"]
+  },
+  "license": "MIT"
+}

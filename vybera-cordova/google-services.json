@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "544899681732",
+    "project_id": "vybera",
+    "storage_bucket": "vybera.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:544899681732:android:939a12362dfee112356891",
+        "android_client_info": {
+          "package_name": "com.vybera.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "544899681732-9lq9km2ie3kaj1aavntmn8jnqsstl6ip.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vybera.app",
+            "certificate_hash": "0e48ed43c6f4e775ab7a4d95607ccc762fc7e2ba"
+          }
+        },
+        {
+          "client_id": "544899681732-ajfuhf0na0e4hcd3prloki6mf70hjl9j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vybera.app",
+            "certificate_hash": "e6543735ae48521ef287b3e2882c4db15b383d30"
+          }
+        },
+        {
+          "client_id": "544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWyY_GX1oWs3Nw34reSmZ-afSf740ppQ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

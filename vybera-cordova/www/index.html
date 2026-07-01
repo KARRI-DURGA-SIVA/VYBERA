@@ -4102,10 +4102,42 @@ function makeUpiPaymentUrl(pending){
 
 function openUpiPaymentUrl(url){
   try {
-    var launchUrl=url;
-    if(window.cordova){
-      launchUrl='intent://pay?'+String(url).replace(/^upi:\/\/pay\?/,'')+'#Intent;scheme=upi;action=android.intent.action.VIEW;end';
-      window.location.href=launchUrl;
+    if(window.cordova && window.plugins && window.plugins.nativeUpi){
+      window.plugins.nativeUpi.pay(url,function(result){
+        var raw=String((result&&result.response)||'').replace(/^.*\?/,'');
+        var params=new URLSearchParams(raw);
+        var response={};
+        params.forEach(function(value,key){response[String(key).toLowerCase()]=value;});
+        var status=String(response.status||'').toUpperCase();
+        var responseCode=String(response.responsecode||'');
+        if(status==='SUCCESS' || responseCode==='00'){
+          var utr=response.approvalrefno||response.txnref||response.txnid||'';
+          if(utr){
+            var pending=getPayUPendingBooking();
+            var payuTxnid=(pending&&pending.payuTransactionId)||(pending&&pending.bookingId)||'';
+            showToast('Payment received. Verifying with PayU...');
+            verifyPayuUpiPayment(payuTxnid)
+              .then(function(verification){return completePendingUpiPayment(utr,verification);})
+              .catch(function(err){
+                console.error('UPI payment verification failed:',err);
+                showToast(err.message||'Payment verification is still pending');
+              });
+            return;
+          }
+        }
+        if(status==='SUBMITTED' || status==='PENDING'){
+          showToast('Payment is processing. Use the confirmation button after it completes.');
+          return;
+        }
+        showToast(status==='FAILURE'?'Payment failed. Please try again.':'Payment was cancelled or not completed.');
+      },function(err){
+        console.error('Native UPI launch failed:',err);
+        showToast('Could not open a UPI app. Please try again.');
+      });
+      return;
+    }
+    if(window.cordova && window.cordova.InAppBrowser){
+      window.cordova.InAppBrowser.open(url,'_system','location=no');
       return;
     }
     window.location.href=url;
@@ -4131,14 +4163,36 @@ function setUpiCompletionButton(){
   if(cancelWrap) cancelWrap.style.display='block';
 }
 
-async function completePendingUpiPayment(){
+async function verifyPayuUpiPayment(txnid){
+  var lastResult=null;
+  for(var attempt=0;attempt<6;attempt++){
+    if(attempt>0)await new Promise(function(resolve){setTimeout(resolve,1800);});
+    try{
+      var resp=await fetch(apiUrl('/payments/payu/verify'),{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({txnid:txnid})
+      });
+      lastResult=await resp.json();
+      if(resp.ok&&lastResult.verified)return lastResult;
+    }catch(err){
+      lastResult={error:err.message||'Payment verification failed'};
+    }
+  }
+  throw new Error((lastResult&&lastResult.error)||'Payment verification is still pending');
+}
+
+async function completePendingUpiPayment(confirmedUtr, verifiedPayment){
   var pendingRaw=localStorage.getItem('VYBERA_PENDING_UPI_BOOKING')||localStorage.getItem('VYBERA_PENDING_PAYU_BOOKING');
   var pending=null;
   try{ pending=pendingRaw?JSON.parse(pendingRaw):null; }catch(err){ pending=null; }
   if(!pending){showToast('No pending UPI payment found');return;}
-  var utr=prompt('Have you completed the UPI payment to '+VYBERA_PAYMENT_UPI_NAME+' ('+VYBERA_PAYMENT_UPI_ID+')?\n\nPlease enter the 12-digit UPI Transaction Reference/UTR Number to confirm your payment:');
-  if(utr === null)return;
-  utr = utr.trim();
+  var utr=typeof confirmedUtr==='string'?confirmedUtr.trim():'';
+  if(!utr){
+    utr=prompt('Have you completed the UPI payment to '+VYBERA_PAYMENT_UPI_NAME+' ('+VYBERA_PAYMENT_UPI_ID+')?\n\nPlease enter the 12-digit UPI Transaction Reference/UTR Number to confirm your payment:');
+    if(utr === null)return;
+    utr=utr.trim();
+  }
   if(!utr){
     showToast('Payment verification requires a Transaction Reference ID');
     return;
@@ -4158,10 +4212,10 @@ async function completePendingUpiPayment(){
   qty=parseInt(pending.qty||1,10)||1;
   updateOrderSummary();
   await showSuccess({
-    gateway:'UPI',
+    gateway:verifiedPayment?'PayU UPI':'UPI',
     status:'Success',
-    verified:false,
-    txnid:utr,
+    verified:!!verifiedPayment,
+    txnid:(verifiedPayment&&verifiedPayment.txnid)||utr,
     upiId:VYBERA_PAYMENT_UPI_ID,
     payee:VYBERA_PAYMENT_UPI_NAME,
     amount:(pending.totals&&pending.totals.total)||0
@@ -4212,6 +4266,10 @@ async function payWithPayU(){
   localStorage.setItem('VYBERA_PENDING_PAYU_BOOKING', JSON.stringify(pending));
   var btn=document.getElementById('payNowBtn');
   if(btn){ btn.disabled=true; btn.textContent='Redirecting to PayU...'; }
+
+  // In the Android app, launch the installed UPI app directly with the
+  // merchant, amount and booking reference already populated. PayU's hosted
+  // UPI tiles use a collect form and ask the buyer to type a UPI ID instead.
   try{
     var resp=await fetch(apiUrl('/payments/payu/initiate'), {
       method:'POST',
@@ -4226,11 +4284,24 @@ async function payWithPayU(){
         productinfo:'BLAK Tickets - '+(CURRENT_EVENT.name||'Event Booking'),
         firstname:buyer.name,
         email:buyer.email,
-        phone:buyer.phone
+        phone:buyer.phone,
+        intent:!!window.cordova
       })
     });
     var data=await resp.json();
     if(!resp.ok) throw new Error(data.error||'PayU initiation failed');
+    if(window.cordova){
+      pending.payuTransactionId=data.txnid||bookingId;
+      pending.payuPaymentId=data.paymentId||'';
+      pending.payuMerchantVpa=data.merchantVpa||'';
+      pending.payuMerchantName=data.merchantName||'';
+      localStorage.setItem('VYBERA_PENDING_PAYU_BOOKING',JSON.stringify(pending));
+      localStorage.setItem('VYBERA_PENDING_UPI_BOOKING',JSON.stringify(pending));
+      setUpiCompletionButton();
+      showToast('Choose your UPI app to complete payment');
+      openUpiPaymentUrl(data.intentUrl);
+      return;
+    }
     submitPayUForm(data.action, data.fields);
   }catch(err){
     if(btn){ btn.disabled=false; btn.textContent='🔒 Pay via PayU — ₹'+totals.total.toLocaleString('en-IN'); }

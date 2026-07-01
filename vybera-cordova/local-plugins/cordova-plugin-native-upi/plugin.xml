@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        id="cordova-plugin-native-upi"
+        version="1.0.0">
+  <name>NativeUPI</name>
+  <js-module src="www/NativeUPI.js" name="NativeUPI">
+    <clobbers target="window.plugins.nativeUpi" />
+  </js-module>
+  <platform name="android">
+    <config-file target="res/xml/config.xml" parent="/*">
+      <feature name="NativeUPI">
+        <param name="android-package" value="com.vybera.plugins.NativeUPI" />
+      </feature>
+    </config-file>
+    <source-file src="src/android/NativeUPI.java"
+                 target-dir="app/src/main/java/com/vybera/plugins" />
+  </platform>
+</plugin>

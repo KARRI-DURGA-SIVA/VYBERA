@@ -3313,6 +3313,10 @@ const payuConfig = {
     (process.env.PAYU_ENV || "test").toLowerCase() === "production"
       ? "https://secure.payu.in/_payment"
       : "https://test.payu.in/_payment",
+  verifyAction:
+    (process.env.PAYU_ENV || "test").toLowerCase() === "production"
+      ? "https://info.payu.in/merchant/postservice.php?form=2"
+      : "https://test.payu.in/merchant/postservice.php?form=2",
 };
 
 const formatPayuAmount = (amount) => Number(amount || 0).toFixed(2);
@@ -3484,10 +3488,125 @@ app.post("/payments/payu/initiate", async (req, res) => {
     };
     fields.hash = makePayuHash(fields);
     await savePaymentTransaction(fields, "Pending", false);
+
+    if (req.body && req.body.intent === true) {
+      const forwardedIp = String(req.headers["x-forwarded-for"] || "")
+        .split(",")[0]
+        .trim();
+      const intentFields = {
+        ...fields,
+        pg: "UPI",
+        bankcode: "INTENT",
+        txn_s2s_flow: "4",
+        s2s_client_ip:
+          forwardedIp || String(req.socket.remoteAddress || "127.0.0.1").replace(/^::ffff:/, ""),
+        s2s_device_info: String(req.get("user-agent") || "VYBERA Android").slice(0, 255),
+      };
+      const payuResponse = await fetch(payuConfig.action, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(intentFields),
+      });
+      const responseText = await payuResponse.text();
+      let payuData = {};
+      try {
+        payuData = JSON.parse(responseText);
+      } catch (_) {
+        payuData = {};
+      }
+      const result = payuData.result || {};
+      const metadata = payuData.metaData || payuData.metadata || {};
+      const intentData = String(result.intentURIData || result.intentUriData || "").trim();
+      if (!payuResponse.ok || !intentData) {
+        const providerMessage =
+          metadata.message || payuData.message || "PayU could not create a UPI payment request";
+        await savePaymentTransaction(fields, "Failed", false, providerMessage);
+        return res.status(502).json({ error: providerMessage });
+      }
+      const intentUrl = intentData.startsWith("upi://")
+        ? intentData
+        : `upi://pay?${intentData.replace(/^\?/, "")}`;
+      return res.json({
+        intentUrl,
+        txnid,
+        paymentId: result.paymentId || "",
+        merchantVpa: result.merchantVpa || "",
+        merchantName: result.merchantName || "",
+        status: metadata.unmappedStatus || "pending",
+      });
+    }
+
     res.json({ action: payuConfig.action, fields });
   } catch (err) {
     console.error("PayU initiation failed:", err);
     res.status(500).json({ error: err.message || "PayU initiation failed" });
+  }
+});
+
+app.post("/payments/payu/verify", async (req, res) => {
+  try {
+    if (!payuConfig.key || !payuConfig.salt) {
+      return res.status(500).json({ verified: false, error: "PayU is not configured" });
+    }
+    const txnid = String((req.body && req.body.txnid) || "").trim().slice(0, 40);
+    if (!txnid) {
+      return res.status(400).json({ verified: false, error: "Transaction ID is required" });
+    }
+    const command = "verify_payment";
+    const hash = crypto
+      .createHash("sha512")
+      .update([payuConfig.key, command, txnid, payuConfig.salt].join("|"))
+      .digest("hex");
+    const providerResponse = await fetch(payuConfig.verifyAction, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        key: payuConfig.key,
+        command,
+        var1: txnid,
+        hash,
+      }),
+    });
+    const data = await providerResponse.json().catch(() => ({}));
+    const transaction =
+      (data.transaction_details && data.transaction_details[txnid]) ||
+      (data.result && (data.result[txnid] || data.result)) ||
+      {};
+    const status = String(transaction.status || transaction.unmappedstatus || "").toLowerCase();
+    const unmappedStatus = String(transaction.unmappedstatus || "").toLowerCase();
+    const verified = status === "success" || unmappedStatus === "captured";
+    if (!verified) {
+      return res.status(409).json({
+        verified: false,
+        status: unmappedStatus || status || "pending",
+        error: "Payment verification is still pending",
+      });
+    }
+    await savePaymentTransaction(
+      {
+        ...transaction,
+        txnid,
+        udf1: transaction.udf1 || txnid,
+      },
+      "Success",
+      true,
+    );
+    return res.json({
+      verified: true,
+      txnid,
+      status: unmappedStatus || status,
+      gatewayPaymentId: transaction.mihpayid || "",
+      amount: Number(transaction.amt || transaction.amount || 0),
+    });
+  } catch (err) {
+    console.error("PayU verification failed:", err);
+    res.status(500).json({ verified: false, error: "Could not verify PayU payment" });
   }
 });
 
