@@ -4450,7 +4450,6 @@ app.post("/auth/reset-password-by-token", async (req, res) => {
   try {
     const token = String((req.body && req.body.token) || "").trim();
     const newPassword = String((req.body && req.body.password) || "");
-
     if (!token) return res.status(400).json({ error: "Reset token is required" });
     if (newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
 
@@ -4489,6 +4488,9 @@ app.post("/auth/reset-password", async (req, res) => {
       (req.body && (req.body.email || req.body.identifier || req.body.loginId)) || "",
     ).trim().toLowerCase();
     const newPassword = String((req.body && req.body.password) || "");
+    const requestedAccountType = String(
+      (req.body && req.body.accountType) || "",
+    ).trim().toLowerCase();
     if (!identifier || newPassword.length < 6) {
       return res.status(400).json({
         error: "Email/login ID and a password of at least 6 characters are required",
@@ -4536,7 +4538,15 @@ app.post("/auth/reset-password", async (req, res) => {
         params: [hash, identifier],
       },
     ];
-    for (const target of targets) {
+    const selectedTargets = requestedAccountType
+      ? targets.filter(
+          (target) => target.type.toLowerCase() === requestedAccountType,
+        )
+      : targets;
+    if (!selectedTargets.length) {
+      return res.status(400).json({ error: "Invalid account type" });
+    }
+    for (const target of selectedTargets) {
       const result = await pool.query(target.sql, target.params);
       if (result.rows.length) {
         return res.json({
