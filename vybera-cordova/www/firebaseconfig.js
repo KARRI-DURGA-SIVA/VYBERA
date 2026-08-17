@@ -37,6 +37,21 @@ function isCordovaWebView() {
   return !!window.cordova || window.location.protocol === "file:" || /\bwv\)/i.test(ua) || /; wv\)/i.test(ua);
 }
 
+function waitForCordovaGooglePlugin() {
+  if (window.plugins && window.plugins.googleplus) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("deviceready", finish, false);
+      resolve(!!(window.plugins && window.plugins.googleplus));
+    };
+    document.addEventListener("deviceready", finish, false);
+    setTimeout(finish, 2500);
+  });
+}
+
 function normalizeLocalAuthOrigin() {
   const isFilePreview = window.location.protocol === "file:";
   const isLoopbackIp = ["127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
@@ -174,7 +189,7 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
       
       // Native Android Google account chooser with Firebase credential
       // verification. The APK signing certificate is registered in Firebase.
-      if (window.plugins && window.plugins.googleplus) {
+      if (await waitForCordovaGooglePlugin()) {
         window.plugins.googleplus.login(
           {
             webClientId: firebaseConfig.oauthClientId,
@@ -197,8 +212,8 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
           (err) => {
             console.error('Google login failed:', err);
             clearGooglePending();
-            const errorCode = err && err.message ? err.message : String(err || '');
-            if (errorCode === '12501') return;
+            const errorCode = String((err && (err.code || err.message)) || err || '');
+            if (errorCode === '12501' || /cancel/i.test(errorCode)) return;
             alert('Google sign-in could not be completed. Please try again.');
           }
         );

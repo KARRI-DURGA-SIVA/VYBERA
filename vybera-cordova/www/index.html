@@ -7402,6 +7402,15 @@ function openGoogleInSystemBrowser(){
 window.openGoogleInSystemBrowser = openGoogleInSystemBrowser;
 
 async function signInWithGoogle(){
+  // Cordova has a native Google Sign-In bridge.  Treating every Cordova
+  // WebView as an OAuth-blocked browser used to skip that bridge completely
+  // and send users through the fragile server-polling fallback instead.
+  if(window.cordova && window.vyberaFirebaseGoogleSignIn){
+    safeSessionRemove('VYBERA_GUEST_MODE');
+    safeSessionSet('VYBERA_GOOGLE_PENDING','1');
+    showToast('Opening Google sign-in...');
+    return window.vyberaFirebaseGoogleSignIn();
+  }
   if(isBlockedGoogleWebView()){
     showToast('Opening Google sign-in...');
     _googlePollAborted = false;

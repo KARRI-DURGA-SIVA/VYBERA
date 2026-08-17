@@ -7,12 +7,57 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:544899681732:android:76384e3dfd86088d356891",
+        "android_client_info": {
+          "package_name": "com.blaktickets.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "544899681732-qp9feft8oqimc3uvrb6o4e7c1loaoelv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.blaktickets.app",
+            "certificate_hash": "fa02a4a51c6a1347f81df844a347eb3156417d20"
+          }
+        },
+        {
+          "client_id": "544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWyY_GX1oWs3Nw34reSmZ-afSf740ppQ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "544899681732-68u9ma1sfqtttsfp2nde8q6jtff9bh6g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:544899681732:android:939a12362dfee112356891",
         "android_client_info": {
           "package_name": "com.vybera.app"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "544899681732-0j8s9jii56hi6ti9b6tpn9585hjcniku.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vybera.app",
+            "certificate_hash": "fa02a4a51c6a1347f81df844a347eb3156417d20"
+          }
+        },
         {
           "client_id": "544899681732-9lq9km2ie3kaj1aavntmn8jnqsstl6ip.apps.googleusercontent.com",
           "client_type": 1,

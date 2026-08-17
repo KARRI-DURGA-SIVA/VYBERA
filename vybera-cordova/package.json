@@ -1,7 +1,7 @@
 {
-  "name": "com.vybera.app",
+  "name": "com.blaktickets.app",
   "displayName": "BLAK Tickets",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "BLAK Tickets event discovery and booking app.",
   "main": "index.js",
   "scripts": {
