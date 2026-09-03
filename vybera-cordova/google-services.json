@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "544899681732-nhikughqjal9m16hpmp5e0h18n0i7co5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.blaktickets.app",
+            "certificate_hash": "ab35df30dc2e94885984d323f91a34e0b3da256c"
+          }
+        },
+        {
           "client_id": "544899681732-qp9feft8oqimc3uvrb6o4e7c1loaoelv.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

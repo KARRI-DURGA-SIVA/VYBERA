@@ -1,7 +1,7 @@
 {
   "name": "com.blaktickets.app",
   "displayName": "BLAK Tickets",
-  "version": "1.0.3",
+  "version": "0.7.5",
   "description": "BLAK Tickets event discovery and booking app.",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,7 @@
   "author": "Apache Cordova Team",
   "license": "Apache-2.0",
   "devDependencies": {
-    "cordova-android": "^15.0.0",
+    "cordova-android": "^15.1.0",
     "cordova-plugin-android-permissions": "^1.1.5",
     "cordova-plugin-customurlscheme": "^5.0.2",
     "cordova-plugin-googleplus": "^8.5.2",
@@ -32,11 +32,11 @@
         "ANDROID_HOST": "google-login",
         "ANDROID_PATHPREFIX": "/"
       },
-      "cordova-plugin-googleplus": {
-        "PLAY_SERVICES_VERSION": "15.0.1"
-      },
       "cordova-plugin-native-upi": {},
-      "cordova-plugin-android-permissions": {}
+      "cordova-plugin-android-permissions": {},
+      "cordova-plugin-googleplus": {
+        "PLAY_SERVICES_VERSION": "18.1.0"
+      }
     }
   }
 }

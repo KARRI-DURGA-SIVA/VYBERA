@@ -186,11 +186,13 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
   try {
     if (isCordovaWebView()) {
       markGooglePending();
+      googleSessionApplied = false;
       
       // Native Android Google account chooser with Firebase credential
       // verification. The APK signing certificate is registered in Firebase.
       if (await waitForCordovaGooglePlugin()) {
-        window.plugins.googleplus.login(
+        const nativeGoogleLogin = () => new Promise((resolve, reject) => {
+          window.plugins.googleplus.login(
           {
             webClientId: firebaseConfig.oauthClientId,
             offline: false
@@ -203,21 +205,37 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
               const credential = GoogleAuthProvider.credential(userData.idToken);
               const userCredential = await signInWithCredential(auth, credential);
               await finishGoogleUser(userCredential.user);
+              resolve();
             } catch (err) {
               console.error('Firebase credential sign-in failed:', err);
               clearGooglePending();
               alert('Google sign-in failed: ' + (err.message || 'Unknown error'));
+              reject(err);
             }
           },
           (err) => {
             console.error('Google login failed:', err);
             clearGooglePending();
             const errorCode = String((err && (err.code || err.message)) || err || '');
-            if (errorCode === '12501' || /cancel/i.test(errorCode)) return;
+            if (errorCode === '12501' || /cancel/i.test(errorCode)) {
+              resolve();
+              return;
+            }
             alert('Google sign-in could not be completed. Please try again.');
+            reject(err);
           }
-        );
-        return;
+          );
+        });
+
+        // Clear the cached native account so logout always leads to account selection.
+        await new Promise((resolve) => {
+          try {
+            window.plugins.googleplus.logout(resolve, resolve);
+          } catch (_) {
+            resolve();
+          }
+        });
+        return nativeGoogleLogin();
       }
       
       if (typeof window.openGoogleInSystemBrowser === "function") {
@@ -278,7 +296,18 @@ window.vyberaFirebaseGoogleSignIn = async function vyberaFirebaseGoogleSignIn() 
 window.signInWithGoogle = window.vyberaFirebaseGoogleSignIn;
 
 window.vyberaFirebaseSignOut = function() {
-  return signOut(auth).catch((err) => {
+  googleSessionApplied = false;
+  clearGooglePending();
+  const nativeLogout = new Promise((resolve) => {
+    try {
+      if (isCordovaWebView() && window.plugins && window.plugins.googleplus) {
+        window.plugins.googleplus.logout(resolve, resolve);
+        return;
+      }
+    } catch (_) {}
+    resolve();
+  });
+  return Promise.all([signOut(auth), nativeLogout]).catch((err) => {
     console.error("Firebase signOut failed:", err);
   });
 };

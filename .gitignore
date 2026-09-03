@@ -1,4 +1,5 @@
 .env
+.signing/
 .npm-cache/
 electric-sql-pglite-*.tgz
 node_modules/

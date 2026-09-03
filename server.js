@@ -3951,6 +3951,35 @@ app.get("/bookings/mine", requireBuyer, async (req, res) => {
   }
 });
 
+app.put("/profile", requireProfileIdentity, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    const cleanName = String(name || "").trim().replace(/\s+/g, " ");
+    if (!cleanName || cleanName.length > 80) {
+      return res.status(400).json({ error: "Enter a valid name" });
+    }
+    const parts = cleanName.split(" ");
+    const firstName = parts.shift();
+    const lastName = parts.join(" ");
+    const result = await pool.query(
+      `UPDATE users
+       SET username=$1, first_name=$2, last_name=$3
+       WHERE LOWER(email)=LOWER($4)
+       RETURNING id, username, first_name, last_name, email, phone, country_code,
+         city, profile_image_url, profile_image_key, profile_image_storage,
+         auth_provider, status`,
+      [cleanName, firstName, lastName, req.profileIdentity.email],
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Profile user was not found" });
+    }
+    res.json({ user: publicUser(result.rows[0]) });
+  } catch (err) {
+    console.error("Profile update failed:", err);
+    res.status(500).json({ error: "Could not update profile" });
+  }
+});
+
 app.get("/profile/tickets", requireProfileIdentity, async (req, res) => {
   try {
     const result = await pool.query(

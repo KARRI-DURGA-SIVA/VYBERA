@@ -10,7 +10,7 @@
 <style>
 :root{--bg:#000000;--bg2:#0D0D0D;--bg3:#161616;--red:#8B2010;--red-dim:rgba(139,32,16,0.15);--purple:#8B2010;--neon:#00D4D4;--white:#fff;--grey:#B3B3B3;--muted:#555;--glass:rgba(255,255,255,0.04);--glass-border:rgba(255,255,255,0.07);--radius:16px;--brick:#8B2010;--teal:#00D4D4;}
 *{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
-body{background:var(--bg);color:var(--white);font-family:"DM Sans",sans-serif;overflow-x:hidden;min-height:100vh;}
+body{background:var(--bg);color:var(--white);font-family:"DM Sans",sans-serif;overflow-x:hidden;overflow-x:clip;min-height:100vh;}
 body.session-restoring .page,body.session-restoring .sub-page{display:none!important;}
 body.session-restoring::before{content:"";position:fixed;inset:0;background:#000;z-index:99998;}
 body.session-restoring::after{content:"";position:fixed;top:50%;left:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border:3px solid rgba(255,255,255,.18);border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite;z-index:99999;}
@@ -50,11 +50,19 @@ body.guest-mode #profileCreatedEventsItem{display:none !important;}
 .hscroll-wrap{overflow-x:auto;padding:0 16px 8px;scroll-snap-type:x mandatory;scrollbar-width:none;}
 .hscroll-wrap::-webkit-scrollbar{display:none;}
 .hscroll{display:flex;gap:12px;}
-.chips-wrap{overflow-x:auto;padding:0 16px 16px;scrollbar-width:none;}
+.chips-wrap{overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;}
 .chips-wrap::-webkit-scrollbar{display:none;}
 .chips{display:flex;gap:8px;}
 .chip{flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:500;border:1px solid var(--glass-border);background:var(--glass);color:var(--grey);cursor:pointer;transition:all .2s;white-space:nowrap;}
 .chip.active{background:var(--red);border-color:var(--red);color:#fff;}
+.home-sticky-header{position:-webkit-sticky;position:sticky;top:0;z-index:990;background:var(--bg);padding-top:10px;border-bottom:1px solid rgba(255,255,255,0.06);box-shadow:0 6px 18px rgba(0,0,0,0.35);}
+.home-search-wrap{padding:0 16px 10px;}
+.home-search-bar{background:var(--bg2);border:1px solid var(--glass-border);border-radius:14px;display:flex;align-items:center;gap:10px;padding:10px 14px;}
+.home-search-bar svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.8;flex-shrink:0;}
+.home-search-bar input{background:none;border:none;outline:none;color:var(--white);font-size:14px;font-family:"DM Sans",sans-serif;flex:1;}
+.home-search-bar input::placeholder{color:var(--muted);}
+.search-clear-btn{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+.search-clear-btn:active{color:var(--white);background:rgba(255,255,255,0.08);}
 .form-input{width:100%;background:var(--bg2);border:1px solid var(--glass-border);border-radius:12px;padding:12px 16px;color:#fff;font-size:14px;font-family:"DM Sans",sans-serif;outline:none;transition:border .2s;}
 .form-input:focus{border-color:var(--red);}
 .form-input::placeholder{color:var(--muted);}
@@ -630,7 +638,20 @@ window.addEventListener('DOMContentLoaded', function(){
 <div class="hero-slides" id="heroSlides"><div class="hero-empty" style="min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;"><div style="font-size:48px;opacity:.3">🎟️</div><div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;opacity:.4;color:#fff;">No Featured Events</div><div style="font-size:14px;color:var(--muted);">Events will appear here once added</div></div></div>
 <div class="hero-dots" id="heroDots" style="display:none;"><div class="dot active" onclick="goToSlide(0)"></div><div class="dot" onclick="goToSlide(1)"></div><div class="dot" onclick="goToSlide(2)"></div></div>
 </div>
+<div class="home-sticky-header" id="homeStickyHeader">
+<div class="home-search-wrap">
+<div class="search-bar home-search-bar">
+<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+<input type="search" id="homeSearchInput" placeholder="Search events, artists, venues…" oninput="handleHomeSearch(this.value)" autocomplete="off"/>
+<button class="search-clear-btn" id="homeSearchClear" type="button" onclick="clearHomeSearch()" style="display:none;" aria-label="Clear search">✕</button>
+</div>
+</div>
 <div class="chips-wrap"><div class="chips"><div class="chip active" data-home-filter="all">All</div><div class="chip" data-home-filter="music">🎵 Music</div><div class="chip" data-home-filter="tech">💻 Tech</div><div class="chip" data-home-filter="comedy">😂 Comedy</div><div class="chip" data-home-filter="sports">⚽ Sports</div><div class="chip" data-home-filter="food">🍕 Food</div><div class="chip" data-home-filter="art">🎨 Art</div><div class="chip" data-home-filter="free">🆓 Free</div></div></div>
+<div id="homeSearchResultsBar" style="display:none;padding:2px 16px 10px;font-size:12px;color:var(--grey);align-items:center;justify-content:space-between;">
+<span>Found <strong id="homeSearchCount">0</strong> events for "<span id="homeSearchTerm"></span>"</span>
+<button onclick="clearHomeSearch()" type="button" style="background:none;border:none;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;">Clear</button>
+</div>
+</div>
 <div class="sec-header"><span class="sec-title">🔥 Trending Now</span><span class="sec-more">See all</span></div>
 <div class="hscroll-wrap"><div class="hscroll" id="row-trending"></div></div>
 <div class="sec-header" style="margin-top:24px;"><span class="sec-title">📍 Near You</span><span class="sec-more">See all</span></div>
@@ -4298,10 +4319,44 @@ function isFreeEvent(event){
   return event.tickets&&event.tickets.some(function(ticket){return Number(ticket.price||0)===0;});
 }
 
+var homeSearchQuery = '';
+
 function matchesHomeFilter(event){
+  if(homeSearchQuery){
+    var q = homeSearchQuery.toLowerCase();
+    var name = String(event.name||'').toLowerCase();
+    var cat = String(event.category||'').toLowerCase();
+    var city = String(event.city||'').toLowerCase();
+    var venue = String(event.venue||'').toLowerCase();
+    var org = String(event.organizerName||event.artist||'').toLowerCase();
+    var desc = String(event.description||'').toLowerCase();
+    var tags = Array.isArray(event.tags) ? event.tags.join(' ').toLowerCase() : String(event.tags||'').toLowerCase();
+    var hay = [name, cat, city, venue, org, desc, tags].join(' ');
+    if(hay.indexOf(q) === -1) return false;
+  }
   if(homeEventFilter==='all') return true;
   if(homeEventFilter==='free') return isFreeEvent(event);
   return String(event.category||'').trim().toLowerCase()===homeEventFilter;
+}
+
+function handleHomeSearch(val){
+  homeSearchQuery = String(val||'').trim();
+  var clearBtn = document.getElementById('homeSearchClear');
+  if(clearBtn) clearBtn.style.display = homeSearchQuery ? 'inline-flex' : 'none';
+  var searchTermEl = document.getElementById('homeSearchTerm');
+  if(searchTermEl) searchTermEl.textContent = homeSearchQuery;
+  refreshBuyerHome();
+}
+
+function clearHomeSearch(){
+  var inp = document.getElementById('homeSearchInput');
+  if(inp) inp.value = '';
+  homeSearchQuery = '';
+  var clearBtn = document.getElementById('homeSearchClear');
+  if(clearBtn) clearBtn.style.display = 'none';
+  var resultsBar = document.getElementById('homeSearchResultsBar');
+  if(resultsBar) resultsBar.style.display = 'none';
+  refreshBuyerHome();
 }
 
 function isThisWeekend(event){
@@ -4325,6 +4380,16 @@ function refreshBuyerHome() {
   var allLive = STORE.events.filter(isPublicLiveEvent);
   var locationLive = locationFilteredEvents(allLive);
   var live = locationLive.filter(matchesHomeFilter);
+  var resultsBar = document.getElementById('homeSearchResultsBar');
+  var countEl = document.getElementById('homeSearchCount');
+  if(resultsBar){
+    if(homeSearchQuery){
+      resultsBar.style.display = 'flex';
+      if(countEl) countEl.textContent = String(live.length);
+    } else {
+      resultsBar.style.display = 'none';
+    }
+  }
   var rowIds = ['row-trending','row-nearby','row-free','row-weekend','row-upcoming','row-ai'];
   rowIds.forEach(function(id){
     var el=document.getElementById(id);
