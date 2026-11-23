@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.blaktickets.app" version="1.0.0" android-versionCode="10039" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android">
+    <name>BEE-OAK</name>
+    <description>Discover live events and book tickets with instant QR entry.</description>
+    <author>BEE-OAK</author>
+    <!-- Release build: the website is bundled in www/ (built with VITE_ROUTER=hash) and served from https://localhost. -->
+    <content src="index.html" />
+    <!-- Payments: PayU + bank / 3-D Secure pages and the API's PayU return redirect stay inside the app. -->
+    <allow-navigation href="https://*/*" />
+    <allow-intent href="upi:*" />
+    <allow-intent href="intent:*" />
+    <allow-intent href="phonepe:*" />
+    <allow-intent href="paytmmp:*" />
+    <allow-intent href="tez:*" />
+    <allow-intent href="gpay:*" />
+    <allow-intent href="tel:*" />
+    <allow-intent href="mailto:*" />
+    <allow-intent href="geo:*" />
+    <preference name="StatusBarBackgroundColor" value="#F4F1E8" />
+    <preference name="AndroidEdgeToEdge" value="true" />
+    <preference name="AndroidWindowSplashScreenBackground" value="#F4F1E8" />
+    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/splash-icon.png" />
+    <preference name="BackgroundColor" value="0xFFF4F1E8" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="AppendUserAgent" value="BeeOakApp" />
+    <preference name="AndroidLaunchMode" value="singleTask" />
+    <icon src="res/icon.png" />
+    <platform name="android">
+        <!-- Location is optional (city picker fallback): hooks/gps-optional.js marks GPS not required so no devices are excluded. -->
+        <hook type="after_prepare" src="hooks/gps-optional.js" />
+        <!-- Android 11+ package visibility: let the app find and open UPI apps (PhonePe, GPay, Paytm). -->
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <queries>
+                <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="upi" /></intent>
+                <package android:name="com.phonepe.app" />
+                <package android:name="net.one97.paytm" />
+                <package android:name="com.google.android.apps.nbu.paisa.user" />
+            </queries>
+        </config-file>
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <uses-feature android:name="android.hardware.location" android:required="false" />
+            <uses-feature android:name="android.hardware.location.network" android:required="false" />
+        </config-file>
+    </platform>
+</widget>

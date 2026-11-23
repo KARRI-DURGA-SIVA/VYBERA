@@ -1,0 +1,37 @@
+{
+  "eventId": "EVT-1795186661818-22651a",
+  "run": "mwp3sdaq",
+  "staff": {
+    "X": {
+      "id": "OST-1795186661877-2f14c4",
+      "staffCode": "BO-YL3SB",
+      "name": "Staff X",
+      "photo": null,
+      "depth": 0,
+      "parentId": null,
+      "parentStaffCode": null,
+      "status": "active",
+      "joinedAt": "2026-11-20T14:57:41.823Z",
+      "email": "staff.x.mwp3sdaq@beeoak.test",
+      "password": "Beeexave39"
+    },
+    "Y": {
+      "id": "OST-1795186661932-93094f",
+      "staffCode": "BO-PLAYS",
+      "name": "Staff Y",
+      "photo": null,
+      "depth": 0,
+      "parentId": null,
+      "parentStaffCode": null,
+      "status": "active",
+      "joinedAt": "2026-11-20T14:57:41.881Z",
+      "email": "staff.y.mwp3sdaq@beeoak.test",
+      "password": "Bee2cjfsc9"
+    }
+  },
+  "x1": {
+    "email": "staff.x1.mwp3sdaq@beeoak.test",
+    "password": "StaffPass@1"
+  },
+  "recruitCode": "LAT6DVM6AC"
+}
