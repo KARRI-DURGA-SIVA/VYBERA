@@ -543,7 +543,55 @@ module.exports = function opportunity(app, deps) {
     await savePaymentTransaction(fields, "Pending", false);
     const returnUrl = String(req.body.returnUrl || "");
     if (/^https?:\/\//.test(returnUrl)) await pool.query("UPDATE payment_transactions SET return_url=$1, purpose=$2 WHERE txnid=$3", [returnUrl.slice(0, 300), t.kind, fields.txnid]);
+
+    // Android app: PayU UPI intent (S2S) -> upi://pay link that opens PhonePe / GPay / Paytm directly.
+    if (req.body.intent === true) {
+      const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || String(req.socket.remoteAddress || "127.0.0.1").replace(/^::ffff:/, "");
+      const r = await fetch(payuConfig.action, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ ...fields, pg: "UPI", bankcode: "INTENT", txn_s2s_flow: "4", s2s_client_ip: ip, s2s_device_info: String(req.get("user-agent") || "BEE-OAK Android").slice(0, 255) }),
+      });
+      const raw = await r.text();
+      let data = {}; try { data = JSON.parse(raw); } catch { data = {}; }
+      const result = data.result || {}; const meta = data.metaData || data.metadata || {};
+      const intentData = String(result.intentURIData || result.intentUriData || "").trim();
+      if (!r.ok || !intentData) {
+        const msg = meta.message || data.message || "PayU could not create a UPI payment request";
+        await savePaymentTransaction(fields, "Failed", false, msg);
+        return fail(res, 502, msg);
+      }
+      const intentUrl = intentData.startsWith("upi://") ? intentData : `upi://pay?${intentData.replace(/^\?/, "")}`;
+      return res.json({ mode: "intent", intentUrl, txnid: fields.txnid });
+    }
     res.json({ mode: "payu", action: payuConfig.action, fields });
+  }));
+
+  // Ask PayU whether a payment succeeded (used after returning from a UPI app). Marks it verified so
+  // /v2/bookings/:id/confirm can issue the ticket. Amount is checked against the database.
+  app.post("/v2/payments/:txnid/verify", wrap(async (req, res) => {
+    const userId = authUserId(req);
+    if (!userId) return fail(res, 401, "Please sign in to continue");
+    const txnid = String(req.params.txnid || "").slice(0, 40);
+    const t = await paymentTarget(txnid);
+    if (!t || Number(t.userId) !== Number(userId)) return fail(res, 404, "Payment not found");
+    const existing = await verifiedPayment(pool, txnid, t.amount);
+    if (existing) return res.json({ status: "success" });
+    if (paymentMode().mode === "simulator") return res.json({ status: "pending" });
+    if (!payuConfig.key || !payuConfig.salt || !payuConfig.verifyAction) return fail(res, 500, "Payments are not configured");
+    const command = "verify_payment";
+    const hash = crypto.createHash("sha512").update([payuConfig.key, command, txnid, payuConfig.salt].join("|")).digest("hex");
+    const r = await fetch(payuConfig.verifyAction, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ key: payuConfig.key, command, var1: txnid, hash }) });
+    const data = await r.json().catch(() => ({}));
+    const tr = (data.transaction_details && data.transaction_details[txnid]) || {};
+    const status = String(tr.status || "").toLowerCase(); const unmapped = String(tr.unmappedstatus || "").toLowerCase();
+    const amount = Number(tr.amt || tr.amount || 0);
+    if ((status === "success" || unmapped === "captured") && amount + 0.001 >= t.amount) {
+      await savePaymentTransaction({ ...tr, txnid, amount, udf1: tr.udf1 || txnid }, "Success", true);
+      return res.json({ status: "success" });
+    }
+    if (status === "failure" || /fail|bounced|dropped|usercancelled/.test(unmapped)) return res.json({ status: "failed" });
+    res.json({ status: "pending" });
   }));
 
   // Local testing only: records a verified payment exactly where the PayU success webhook would.
