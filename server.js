@@ -79,6 +79,9 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL.includes("localhost")
     ? false
     : { rejectUnauthorized: false },
+  // Opening a TLS connection to the hosted DB is slow (~2s); keep connections warm for reuse.
+  idleTimeoutMillis: 5 * 60 * 1000,
+  keepAlive: true,
 });
 
 const r2Config = {
@@ -317,6 +320,11 @@ const publicCreatorEvent = (event) => ({
   revenue: Number(event.revenue || 0),
   checkins: Number(event.checkins || 0),
   createdAt: event.created_at,
+  media: Array.isArray(event.media) ? event.media : [],
+  minQty: Number(event.min_qty || 1),
+  maxQty: Number(event.max_qty || 10),
+  isOpportunity: /opportunit/i.test(String(event.category || "")),
+  staffRecruitment: /opportunit/i.test(String(event.category || "")) ? !(event.opp_settings && event.opp_settings.recruitmentEnabled === false) : false,
 });
 
 const creatorEventSalesQuery = `
@@ -1084,7 +1092,7 @@ const initDb = async () => {
   );
 };
 
-initDb().catch((err) => {
+initDb().then(() => opp.initDb()).catch((err) => {
   console.error("Database initialization failed:", err);
   process.exit(1);
 });
@@ -1375,7 +1383,7 @@ app.post("/creator/applications", async (req, res) => {
         fileName: file.fileName,
         folder: `kyc-documents/${cleanPathSegment(cleanEmail, "creator")}/${documentType}`,
         dataUrl: file.dataUrl,
-        requireR2: true,
+        requireR2: Boolean(r2Config.endpoint && r2Config.bucket),
       });
       uploaded.push({ documentType, fileName: file.fileName, ...asset });
     }
@@ -1601,7 +1609,7 @@ app.post("/creator/events/banner", requireCreator, async (req, res) => {
       fileName,
       folder: `event-banners/creator-${req.creator.sub}`,
       dataUrl,
-      requireR2: true,
+      requireR2: Boolean(r2Config.endpoint && r2Config.bucket),
     });
     res.status(201).json(asset);
   } catch (err) {
@@ -1629,11 +1637,12 @@ app.post("/creator/events", requireCreator, async (req, res) => {
       visibility,
       tickets,
     } = req.body || {};
+    const extras = opp.normalizeEventInput(req.body || {});
     const cleanTickets = Array.isArray(tickets)
       ? tickets
           .map((ticket) => ({
             name: String(ticket.name || "").trim(),
-            price: Number(ticket.price || 0),
+            price: extras.free ? 0 : Number(ticket.price || 0),
             qty: Number(ticket.qty || 0),
             perks: String(ticket.perks || "").trim(),
           }))
@@ -1704,9 +1713,14 @@ app.post("/creator/events", requireCreator, async (req, res) => {
     if (!result.rows.length) {
       throw new Error("Event was not saved in the database");
     }
+    const saved = await pool.query(
+      "UPDATE creator_events SET media=$1, min_qty=$2, max_qty=$3, opp_settings=$4 WHERE id=$5 RETURNING *",
+      [JSON.stringify(extras.media), extras.minQty, extras.maxQty, extras.oppSettings ? JSON.stringify(extras.oppSettings) : null, id],
+    );
     res.status(201).json({
       message: "Event published successfully",
-      event: publicCreatorEvent(result.rows[0]),
+      event: publicCreatorEvent(saved.rows[0]),
+      ...(extras.oppSettings ? { recruitCode: extras.oppSettings.recruitCode } : {}),
     });
   } catch (err) {
     console.error("Creator event publish failed:", err);
@@ -3626,6 +3640,8 @@ app.post("/payments/payu/success", async (req, res) => {
       verified,
       verified ? "" : "Payment signature could not be verified",
     );
+    const webReturn = await paymentReturnUrl(body.txnid);
+    if (webReturn) return res.redirect(303, `${webReturn}${webReturn.includes("?") ? "&" : "?"}txnid=${encodeURIComponent(body.txnid || "")}&status=${verified ? "success" : "failed"}`);
     res.send(
       payuReturnHtml({
         verified,
@@ -3659,6 +3675,8 @@ app.post("/payments/payu/failure", async (req, res) => {
       verified,
       body.error_Message || body.error || "Payment failed",
     );
+    const webReturnFail = await paymentReturnUrl(body.txnid);
+    if (webReturnFail) return res.redirect(303, `${webReturnFail}${webReturnFail.includes("?") ? "&" : "?"}txnid=${encodeURIComponent(body.txnid || "")}&status=failed`);
     res.send(
       payuReturnHtml({
         verified,
@@ -4618,6 +4636,19 @@ app.get("/session", async (req, res) => {
   } catch (err) {
     res.status(401).json({ error: err.message || "Invalid session" });
   }
+});
+
+// ---- BEE-OAK v2: Opportunity staff hierarchy + verified bookings (see opportunity.js) ----
+async function paymentReturnUrl(txnid) {
+  if (!txnid) return null;
+  try {
+    const r = await pool.query("SELECT return_url FROM payment_transactions WHERE txnid=$1", [String(txnid)]);
+    return r.rows[0] && r.rows[0].return_url ? r.rows[0].return_url : null;
+  } catch (_) { return null; }
+}
+const opp = require("./opportunity")(app, {
+  pool, bcrypt, crypto, signJwt, verifyJwt, ticketResponse, isEventBookable, isUserActive,
+  payuConfig, makePayuHash, formatPayuAmount, cleanPayuText, savePaymentTransaction, saveAsset,
 });
 
 const PORT = process.env.PORT || 3003;
