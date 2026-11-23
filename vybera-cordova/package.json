@@ -1,8 +1,8 @@
 {
   "name": "com.blaktickets.app",
-  "displayName": "BLAK Tickets",
-  "version": "0.7.5",
-  "description": "BLAK Tickets event discovery and booking app.",
+  "displayName": "BEE-OAK",
+  "version": "0.9.1",
+  "description": "BEE-OAK event discovery and booking app.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

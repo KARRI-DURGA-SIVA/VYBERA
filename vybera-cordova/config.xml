@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.blaktickets.app" version="0.7.5" android-versionCode="10031" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-    <name>BLAK Tickets</name>
+<widget id="com.blaktickets.app" version="0.9.1" android-versionCode="10034" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>BEE-OAK</name>
     <description>
-        BLAK Tickets event discovery and booking app.
+        BEE-OAK event discovery and booking app.
     </description>
     <author email="support@vybera.in" href="https://vybera.in">
-        BLAK Tickets
+        BEE-OAK
     </author>
     <content src="index.html" />
     <preference name="AndroidXEnabled" value="true" />
@@ -15,7 +15,7 @@
     <preference name="AndroidWindowSoftInputMode" value="adjustResize" />
     <preference name="StatusBarBackgroundColor" value="#000000" />
     <preference name="StatusBarStyle" value="lightcontent" />
-    <preference name="AndroidWindowSplashScreenBackground" value="#FFFFFF" />
+    <preference name="AndroidWindowSplashScreenBackground" value="#F4F1E8" />
     <preference name="AndroidWindowSplashScreenAnimatedIcon" value="resources/android/splash-icon.png" />
     <preference name="GradlePluginGoogleServicesEnabled" value="true" />
     <icon src="resources/icon.png" />

@@ -19,6 +19,7 @@ public class NativeUPI extends CordovaPlugin {
             throws JSONException {
         if (!"pay".equals(action)) return false;
         String upiUrl = args.optString(0, "").trim();
+        final String upiPackage = args.optString(1, "").trim();
         if (!upiUrl.startsWith("upi://pay?")) {
             callbackContext.error("Invalid UPI payment URL");
             return true;
@@ -33,8 +34,21 @@ public class NativeUPI extends CordovaPlugin {
         cordova.getActivity().runOnUiThread(() -> {
             try {
                 Intent payment = new Intent(Intent.ACTION_VIEW, Uri.parse(upiUrl));
-                Intent chooser = Intent.createChooser(payment, "Pay with UPI");
-                cordova.getActivity().startActivityForResult(chooser, REQUEST_UPI_PAYMENT);
+                boolean launched = false;
+                if (!upiPackage.isEmpty()) {
+                    try {
+                        Intent direct = new Intent(Intent.ACTION_VIEW, Uri.parse(upiUrl));
+                        direct.setPackage(upiPackage);
+                        cordova.getActivity().startActivityForResult(direct, REQUEST_UPI_PAYMENT);
+                        launched = true;
+                    } catch (android.content.ActivityNotFoundException missing) {
+                        // chosen app is not installed: let the user pick another one
+                    }
+                }
+                if (!launched) {
+                    Intent chooser = Intent.createChooser(payment, "Pay with UPI");
+                    cordova.getActivity().startActivityForResult(chooser, REQUEST_UPI_PAYMENT);
+                }
             } catch (Exception error) {
                 CallbackContext callback = pendingCallback;
                 pendingCallback = null;
