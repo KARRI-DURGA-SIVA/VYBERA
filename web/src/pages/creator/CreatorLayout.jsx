@@ -19,7 +19,6 @@ const GROUPS = [
   ['Operations', [
     { to: '/creator/scanner', label: 'QR Scanner', icon: 'scan' },
     { to: '/creator/staff', label: 'Staff Management', icon: 'users' },
-    { to: '/creator/revenue?tab=payouts', label: 'Payouts', icon: 'card', exact: true },
   ]],
   ['System', [
     { to: '/creator/plans', label: 'Subscription', icon: 'bolt', plan: true },
@@ -75,9 +74,6 @@ export default function CreatorLayout() {
                     <div className="menu">
                       <div style={{ padding: '8px 12px 10px' }}><b style={{ fontSize: 14 }}>{creator.name}</b><div className="muted" style={{ fontSize: 12.5 }}>{creator.email}</div></div>
                       <hr />
-                      <Link to="/creator/plans"><Icon name="bolt" /> Subscription</Link>
-                      <Link to="/profile?tab=creator"><Icon name="gear" /> Settings</Link>
-                      {IS_PORTAL && <Link to="/"><Icon name="chevL" /> Partner portal</Link>}
                       <button onClick={() => { logout(); notify('Signed out of creator mode'); nav(IS_PORTAL ? '/creator' : '/profile?tab=creator'); }}><Icon name="logout" /> Sign out</button>
                     </div>
                   )}

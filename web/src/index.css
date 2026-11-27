@@ -3291,3 +3291,48 @@ body::before { background: var(--cream); }
 :root[data-theme="dark"] .oh-side nav a.active svg { color: #bfe8cf; }
 :root[data-theme="dark"] .oh-side nav a.active::before { background: #8fd3ab; }
 .oh-side nav a.active::before { display: none; }
+
+/* ── Organizer hub: My events + Create event in the dashboard style ── */
+.oh .cr-head { align-items: flex-end; margin-bottom: 26px; }
+.oh .cr-head h1 { font-size: clamp(30px, 3.2vw, 40px); font-weight: 800; letter-spacing: -.03em; color: #1f4a35; }
+.oh .cr-head p { font-size: 15px; color: #3f5b4c; margin-top: 6px; }
+.oh .cr-head-actions .btn { height: 42px; border-radius: 12px; font-weight: 600; }
+.oh .cr-head-actions .btn-primary { background: #1d6141; box-shadow: 0 10px 22px -14px rgba(20, 60, 40, .8); }
+.oh .cr-head-actions .btn-ghost { background: #fff; border: 1px solid #e1e4dd; color: #1f3a2d; }
+.oh .tabs { display: inline-flex; padding: 5px; gap: 4px; border-radius: 999px; background: #e4e9e2; border: 0; }
+.oh .tabs button { height: 36px; padding: 0 18px; border-radius: 999px; font-weight: 600; color: #2f6b4b; background: none; border: 0; }
+.oh .tabs button.on { background: #fff; color: #1f4a35; box-shadow: 0 4px 12px -8px rgba(20, 60, 40, .5); }
+.oh .cr-main > .panel, .oh .wiz-panel { padding: 22px; border-radius: 22px; background: #fff; border: 1px solid #e1e4dd; box-shadow: 0 2px 10px -6px rgba(20, 60, 40, .2); }
+.oh .ev-table { gap: 8px; }
+.oh .ev-row { padding: 14px; border-radius: 16px; border: 1px solid #edf0ea; background: #fbfcfa; transition: border-color .2s, box-shadow .2s, transform .15s; }
+.oh .ev-row:hover { background: #fff; border-color: #d6e4da; box-shadow: 0 10px 24px -18px rgba(20, 60, 40, .45); transform: translateY(-1px); }
+.oh .ev-thumb { border-radius: 12px; overflow: hidden; }
+.oh .ev-num b { color: #1f4a35; }
+.oh .empty { padding: 48px 20px; border: 1.5px dashed #d6e0d8; border-radius: 18px; background: #fbfcfa; }
+.oh .empty .ic { background: #e2f0e7; color: #1d6141; }
+.oh .empty .btn-primary { background: #1d6141; border-radius: 12px; }
+/* create event wizard */
+.oh .wiz-steps { gap: 8px; margin-bottom: 22px; padding: 8px; border-radius: 18px; background: #fff; border: 1px solid #e1e4dd; width: fit-content; max-width: 100%; }
+.oh .wiz-step { height: 40px; border: 0; background: none; color: #5a7566; font-weight: 600; }
+.oh .wiz-step i { background: #eef1ec; color: #3f5b4c; }
+.oh .wiz-step.on { background: #e2f0e7; color: #1d6141; }
+.oh .wiz-step.on i { background: #1d6141; color: #fff; }
+.oh .wiz-step.done { color: #1f3a2d; }
+.oh .wiz-step.done i { background: #c9e3d3; color: #1d6141; }
+.oh .wiz-panel { padding: 30px; }
+.oh .wiz-panel h2, .oh .wiz-panel h3 { color: #1f4a35; letter-spacing: -.02em; }
+.oh .wiz-panel .input, .oh .wiz-panel select, .oh .wiz-panel textarea { border-radius: 12px; border-color: #dfe3dc; background: #fbfcfa; }
+.oh .wiz-panel .input:focus, .oh .wiz-panel textarea:focus { border-color: #1d6141; box-shadow: 0 0 0 3px rgba(29, 97, 65, .12); background: #fff; }
+.oh .cat-card { border-radius: 16px; border: 1.5px solid #e1e4dd; background: #fbfcfa; transition: border-color .2s, background .2s, transform .15s; }
+.oh .cat-card:hover { transform: translateY(-2px); border-color: #c9dccf; }
+.oh .cat-card.on { border-color: #1d6141; background: #e2f0e7; box-shadow: none; }
+.oh .wiz-foot { margin-top: 26px; padding-top: 20px; border-top: 1px solid #edf0ea; }
+.oh .wiz-foot .btn-primary { background: #1d6141; border-radius: 12px; height: 46px; }
+.oh .wiz-foot .btn-ghost { border-radius: 12px; height: 46px; background: #fff; border: 1px solid #e1e4dd; }
+@media (max-width: 900px) {
+  .oh .wiz-steps { width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .oh .wiz-step { flex: none; }
+  .oh .cr-main > .panel, .oh .wiz-panel { padding: 16px; border-radius: 18px; }
+}
+:root[data-theme="dark"] .oh .cr-head h1 { color: var(--ink); }
+:root[data-theme="dark"] .oh .cr-main > .panel, :root[data-theme="dark"] .oh .wiz-panel, :root[data-theme="dark"] .oh .wiz-steps, :root[data-theme="dark"] .oh .ev-row, :root[data-theme="dark"] .oh .cat-card { background: var(--card); border-color: var(--line); }
