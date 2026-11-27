@@ -245,6 +245,6 @@ export const oppStaffDetail = (eventId, staffId) => v2(`/v2/creator/events/${enc
 /* ---------- Organizer plans & credits (1 credit = 1 digital ticket) ---------- */
 export const planStatus = () => v2('/v2/creator/subscription', { token: ct() });
 export const planStart = (planId, billingPeriod) => v2('/v2/creator/subscription', { method: 'POST', token: ct(), body: { planId, billingPeriod } });
-export const planPay = (id, returnUrl) => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/pay`, { method: 'POST', token: ct(), body: { returnUrl } });
+export const planPay = (id, returnUrl, opts = {}) => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/pay`, { method: 'POST', token: ct(), body: { returnUrl, ...(opts.intent ? { intent: true } : {}) } });
 export const planSimulate = (id, outcome = 'success') => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/simulate`, { method: 'POST', token: ct(), body: { outcome } });
 export const planConfirm = (id) => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/confirm`, { method: 'POST', token: ct() });

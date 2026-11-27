@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../components/Icon';
 import { useApp } from '../../lib/store';
-import { submitPayU, storage } from '../../lib/api';
+import { canPayUpiNative, payWithUpiApp, submitPayU, storage } from '../../lib/api';
+import { useCreator } from '../../lib/creatorStore';
+import QRCode from 'qrcode';
 import { appUrl } from '../../lib/env';
 import { planConfirm, planPay, planSimulate, planStart } from '../../lib/creator';
 
@@ -29,6 +32,7 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [sim, setSim] = useState(null);
+  const [checkout, setCheckout] = useState(null);
   const plan = all.find((p) => p.id === pick) || all[0];
   const yearly = period === 'yearly';
   const price = plan.trial ? 0 : yearly ? plan.annualPrice : plan.monthlyPrice;
@@ -36,12 +40,10 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
   const subscribe = async () => {
     setErr(''); setBusy(true);
     try {
+      if (!plan.trial) { setCheckout({ id: null, amount: price, plan, period }); setBusy(false); return; }
       const s = await planStart(plan.id, period);
       if (s.activated) { notify('Free trial started'); onActivated({ subscription: s.subscription, credits: s.credits }); return; }
-      storage.set(PENDING_PLAN, s.subscriptionId);
-      const p = await planPay(s.subscriptionId, appUrl(`/creator/create?plan=${encodeURIComponent(s.subscriptionId)}`));
-      if (p.mode === 'simulator') { setSim({ id: s.subscriptionId, amount: p.amount }); setBusy(false); return; }
-      submitPayU(p.action, p.fields);
+      setCheckout({ id: s.subscriptionId, amount: s.amount, plan, period }); setBusy(false);
     } catch (e) { setErr(e.message); setBusy(false); }
   };
   const simulate = async (outcome) => {
@@ -101,6 +103,7 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
       </button>
       <p className="pw-fine">{plan.trial ? `${plan.monthlyCredits} credits for ${plan.trialDays} days, then choose a plan to keep creating events.` : `${yearly ? 'Renews yearly' : 'Renews monthly'} · ${plan.monthlyCredits.toLocaleString('en-IN')} credits every month · cancel anytime`}</p>
 
+      {checkout && <Checkout {...checkout} onClose={() => setCheckout(null)} onActivated={(r) => { setCheckout(null); notify(`${r.subscription.plan} plan activated`); onActivated(r); }} />}
       {sim && (
         <div className="modal-scrim">
           <div className="modal" role="dialog" aria-modal="true" aria-label="Test payment" style={{ maxWidth: 440, textAlign: 'center' }}>
@@ -115,6 +118,109 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
         </div>
       )}
     </div>
+  );
+}
+
+const UPI_APPS = [
+  { key: 'gpay', name: 'Google Pay', icon: '/pay/googlepay.svg', color: '#1a73e8', pkg: 'com.google.android.apps.nbu.paisa.user' },
+  { key: 'phonepe', name: 'PhonePe', icon: '/pay/phonepe.svg', color: '#5f259f', pkg: 'com.phonepe.app' },
+  { key: 'paytm', name: 'Paytm', icon: '/pay/paytm.svg', color: '#00baf2', pkg: 'net.one97.paytm' },
+];
+const isPhone = () => /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+// Checkout: order summary + PayU payment (UPI QR, UPI app, or card / net banking).
+function Checkout({ amount, plan, period, onClose, onActivated }) {
+  const { creator } = useCreator();
+  const [method, setMethod] = useState(isPhone() ? 'app' : 'qr');
+  const [name, setName] = useState(creator?.name || '');
+  const [stage, setStage] = useState('form'); // form | qr | waiting | sim
+  const [qr, setQr] = useState(''); const [subId, setSubId] = useState('');
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const yearly = period === 'yearly';
+  const label = `${plan.name} · ${yearly ? 'Yearly' : 'Monthly'}`;
+
+  // Each payment attempt gets its own subscription id (PayU txnids are single-use).
+  const fresh = async () => { const s = await planStart(plan.id, period); storage.set(PENDING_PLAN, s.subscriptionId); setSubId(s.subscriptionId); return s.subscriptionId; };
+  const poll = async (id) => {
+    for (let i = 0; i < 100; i++) {
+      try { const r = await planConfirm(id); storage.del(PENDING_PLAN); onActivated(r); return; } catch (e) { if (e.status !== 402) { setErr(e.message); setStage('form'); setBusy(false); return; } }
+      await new Promise((res) => setTimeout(res, 3000));
+    }
+    setErr('We haven’t received the payment yet. If money was debited, your plan activates within a few minutes.'); setStage('form'); setBusy(false);
+  };
+
+  const pay = async (app) => {
+    setErr(''); setBusy(true);
+    try {
+      const id = await fresh();
+      const ret = appUrl(`/creator/create?plan=${encodeURIComponent(id)}`);
+      const viaUpi = method !== 'card';
+      const p = await planPay(id, ret, { intent: viaUpi });
+      if (p.mode === 'simulator') { setStage('sim'); setBusy(false); return; }
+      if (p.mode === 'payu') { submitPayU(p.action, p.fields); return; }
+      if (method === 'qr') { setQr(await QRCode.toDataURL(p.intentUrl, { width: 260, margin: 1, color: { dark: '#0b2a1c', light: '#ffffff' } })); setStage('qr'); poll(id); return; }
+      setStage('waiting');
+      if (canPayUpiNative()) await payWithUpiApp(p.intentUrl, app?.pkg); else window.location.href = p.intentUrl;
+      poll(id);
+    } catch (e) { setErr(e.message); setBusy(false); setStage('form'); }
+  };
+  const simulate = async (outcome) => {
+    setBusy(true);
+    try { await planSimulate(subId, outcome); if (outcome === 'fail') { setErr('Payment failed. Your plan was not activated.'); setStage('form'); setBusy(false); return; } const r = await planConfirm(subId); storage.del(PENDING_PLAN); onActivated(r); } catch (e) { setErr(e.message); setBusy(false); }
+  };
+
+  return createPortal(
+    <div className="modal-scrim ck-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div className="ck" role="dialog" aria-modal="true" aria-label="Checkout">
+        <div className="ck-top"><span className="ck-logo"><img src="/logo.png" alt="" /></span><b>Checkout</b><button type="button" className="ck-x" onClick={onClose} aria-label="Close"><Icon name="x" size={20} /></button></div>
+        <div className="ck-body">
+          <section className="ck-sum">
+            <small>Subscribe to {plan.name}</small>
+            <div className="ck-amt">{inr(amount)}<span>per<br />{yearly ? 'year' : 'month'}</span></div>
+            <div className="ck-line"><span><b>{label}</b><small>{yearly ? 'Billed once for 12 months' : 'Billed monthly'}</small></span><b>{inr(amount)}</b></div>
+            <div className="ck-line"><span><b>{plan.monthlyCredits.toLocaleString('en-IN')} ticket credits / month</b><small>1 credit = 1 digital ticket · check-ins free</small></span><b>Included</b></div>
+            <div className="ck-line sub"><span>Subtotal</span><b>{inr(amount)}</b></div>
+            <div className="ck-line tot"><span>Total due today</span><b>{inr(amount)}</b></div>
+            <p className="ck-tax">Prices are inclusive of applicable taxes.</p>
+          </section>
+          <section className="ck-pay">
+            {stage === 'qr' ? (
+              <div className="ck-qr">
+                <h3>Authorize payment with your app</h3>
+                <p>Scan this QR code with any UPI app and follow the steps to pay {inr(amount)}.</p>
+                <span className="ck-qr-box"><img src={qr} alt="UPI payment QR code" /></span>
+                <span className="ck-wait"><span className="spinner dark" /> Waiting for payment…</span>
+                <small>UPI is supported in multiple apps</small>
+                <span className="ck-apps">{UPI_APPS.map((a) => <i key={a.key} style={{ background: a.color }} title={a.name}><img src={a.icon} alt="" /></i>)}</span>
+                <button type="button" className="ck-link" onClick={() => { setStage('form'); setBusy(false); }}>Use another method</button>
+              </div>
+            ) : stage === 'waiting' ? (
+              <div className="ck-qr"><span className="spinner dark" style={{ width: 30, height: 30 }} /><h3>Complete the payment in your UPI app</h3><p>We’ll activate your plan as soon as PayU confirms it.</p><button type="button" className="ck-link" onClick={() => { setStage('form'); setBusy(false); }}>Cancel</button></div>
+            ) : stage === 'sim' ? (
+              <div className="ck-qr"><h3>Test payment gateway</h3><p>This local server simulates PayU — no real money moves.</p><button type="button" className="ck-btn" onClick={() => simulate('success')} disabled={busy}>{busy && <span className="spinner" />}Pay {inr(amount)}</button><button type="button" className="ck-link" onClick={() => simulate('fail')} disabled={busy}>Simulate failed payment</button></div>
+            ) : (
+              <>
+                <h3>Pay securely</h3>
+                <div className="ck-field ro"><span>Email</span><b>{creator?.email || '—'}</b></div>
+                <div className="ck-field"><label htmlFor="ck-name">Name</label><input id="ck-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></div>
+                <h4>Payment method</h4>
+                <div className="ck-methods" role="radiogroup" aria-label="Payment method">
+                  {[['qr', 'qr', 'UPI · scan QR', 'Scan with any UPI app'], ['app', 'phone', 'UPI apps', 'Google Pay, PhonePe, Paytm'], ['card', 'card', 'Card / Net banking', 'Secure PayU checkout']].map(([k, ic, t, d]) => (
+                    <button key={k} type="button" role="radio" aria-checked={method === k} className={method === k ? 'on' : ''} onClick={() => setMethod(k)}><Icon name={ic} size={20} /><span><b>{t}</b><small>{d}</small></span><i /></button>
+                  ))}
+                </div>
+                {method === 'app' && <div className="ck-appbtns">{UPI_APPS.map((a) => <button key={a.key} type="button" disabled={busy || !name.trim()} onClick={() => pay(a)}><i style={{ background: a.color }}><img src={a.icon} alt="" /></i>{a.name}</button>)}</div>}
+                {method === 'qr' && <p className="ck-hint"><Icon name="qr" size={18} /> You’ll be shown a QR code to scan with your preferred UPI app.</p>}
+                {err && <div className="alert err"><Icon name="info" />{err}</div>}
+                {method !== 'app' && <button type="button" className="ck-btn" onClick={() => pay()} disabled={busy || !name.trim()}>{busy && <span className="spinner" />}Subscribe · {inr(amount)}</button>}
+                <p className="ck-fine">By subscribing, you authorise BEE-OAK to charge you {inr(amount)} {yearly ? 'per year' : 'per month'} for the {plan.name} plan. Payments secured by <b>PayU</b>.</p>
+              </>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
