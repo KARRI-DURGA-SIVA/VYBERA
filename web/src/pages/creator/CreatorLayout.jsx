@@ -6,6 +6,7 @@ import { useCreator } from '../../lib/creatorStore';
 import { IS_SANDBOX } from '../../lib/api';
 import { PageLoader } from '../Details';
 import CreatorAuth from './CreatorAuth';
+import { IS_PORTAL } from '../../lib/env';
 
 const NAV = [
   { to: '/creator', label: 'Dashboard', icon: 'grid', end: true },
@@ -34,7 +35,7 @@ export default function CreatorLayout() {
           <span className="cr-mode"><Icon name="spark" size={14} /> Creator mode</span>
           {IS_SANDBOX && <span className="sandbox-pill" title="Publishing, staff, finance PIN and check-ins are simulated. The production database is not touched.">Sandbox</span>}
           <div className="cr-top-right">
-            <Link to="/" className="btn btn-ghost btn-sm"><Icon name="chevL" size={14} /> Back to BEE-OAK</Link>
+            <Link to="/" className="btn btn-ghost btn-sm"><Icon name="chevL" size={14} /> {IS_PORTAL ? 'Partner portal' : 'Back to BEE-OAK'}</Link>
             {creator && (
               <div style={{ position: 'relative' }}>
                 <button className="user-chip" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>

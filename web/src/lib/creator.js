@@ -241,3 +241,10 @@ export const oppSettings = (eventId, body) => v2(`/v2/creator/events/${encodeURI
 export const oppAddStaff = (eventId, body) => v2(`/v2/creator/events/${encodeURIComponent(eventId)}/staff`, { method: 'POST', token: ct(), body });
 export const oppAllocate = (eventId, body) => v2(`/v2/creator/events/${encodeURIComponent(eventId)}/allocations`, { method: 'POST', token: ct(), body });
 export const oppStaffDetail = (eventId, staffId) => v2(`/v2/creator/events/${encodeURIComponent(eventId)}/staff/${encodeURIComponent(staffId)}`, { token: ct() });
+
+/* ---------- Organizer plans & credits (1 credit = 1 digital ticket) ---------- */
+export const planStatus = () => v2('/v2/creator/subscription', { token: ct() });
+export const planStart = (planId, billingPeriod) => v2('/v2/creator/subscription', { method: 'POST', token: ct(), body: { planId, billingPeriod } });
+export const planPay = (id, returnUrl) => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/pay`, { method: 'POST', token: ct(), body: { returnUrl } });
+export const planSimulate = (id, outcome = 'success') => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/simulate`, { method: 'POST', token: ct(), body: { outcome } });
+export const planConfirm = (id) => v2(`/v2/creator/subscription/${encodeURIComponent(id)}/confirm`, { method: 'POST', token: ct() });

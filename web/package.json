@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:portal": "VITE_PORTAL=1 VITE_ADMIN_API_BASE=/admin-api vite --port 5175 --strictPort",
+    "build:portal": "VITE_PORTAL=1 vite build --outDir dist-portal",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

@@ -4,7 +4,7 @@ import Icon from '../../components/Icon';
 import { Poster } from '../../components/EventCard';
 import { useApp } from '../../lib/store';
 import { useCreator } from '../../lib/creatorStore';
-import { analytics, myEvents, scanLog, unlockFinance } from '../../lib/creator';
+import { analytics, creatorSession, myEvents, planStatus, scanLog, unlockFinance } from '../../lib/creator';
 import { fmtDate, fmtINR, isPast } from '../../lib/utils';
 import { PageLoader } from '../Details';
 
@@ -91,6 +91,36 @@ export function RevenueBars({ events }) {
   );
 }
 
+// Plan & credits summary (allocated / consumed / remaining, billing period, renewal date).
+function PlanCard() {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    if (String(creatorSession.token()).startsWith('sandbox.')) return;
+    planStatus().then(setD).catch(() => setD(null)); // hidden when the server has no plans
+  }, []);
+  if (!d) return null;
+  const sub = d.subscription; const c = d.credits;
+  if (!sub) {
+    return (
+      <div className="plan-card plan-none">
+        <span><b>No organizer plan yet</b><small>Choose a plan to create events and issue tickets.</small></span>
+        <Link to="/creator/create" className="btn btn-primary btn-sm">See plans</Link>
+      </div>
+    );
+  }
+  const pct = c.allocated ? Math.min(100, Math.round((c.consumed / c.allocated) * 100)) : 0;
+  return (
+    <div className="plan-card">
+      <span className="plan-name"><small>Current plan</small><b>{sub.plan}</b><em>{sub.billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'} · renews {new Date(sub.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</em></span>
+      <span className="plan-credits">
+        <span className="plan-nums"><span><b>{c.remaining.toLocaleString('en-IN')}</b><small>credits left</small></span><span><b>{c.consumed.toLocaleString('en-IN')}</b><small>used</small></span><span><b>{c.allocated.toLocaleString('en-IN')}</b><small>allocated</small></span></span>
+        <span className="plan-bar" aria-label={`${pct}% of credits used`}><i style={{ width: `${pct}%` }} /></span>
+        <small className="muted">1 credit = 1 digital ticket · check-ins are free · {sub.monthlyCredits.toLocaleString('en-IN')} credits each month</small>
+      </span>
+    </div>
+  );
+}
+
 export default function CreatorDashboard() {
   const { creator, financeOpen, setFinanceOpen } = useCreator();
   const { data, err, reload } = useCreatorData();
@@ -110,6 +140,7 @@ export default function CreatorDashboard() {
         <Link to="/creator/create" className="btn btn-primary btn-sm"><Icon name="edit" size={14} /> New event</Link>
       </CrHead>
       {err && <div className="alert err" style={{ marginBottom: 18 }}><Icon name="info" />{err}</div>}
+      <PlanCard />
       <div className="kpis" style={{ marginTop: 0 }}>
         <div className="kpi"><small>Tickets sold</small><b>{sold}</b><i>{sold ? 'across all events' : 'No sales yet'}</i></div>
         <div className="kpi"><small>Active events</small><b>{live.length}</b><i>{events.length} total</i></div>

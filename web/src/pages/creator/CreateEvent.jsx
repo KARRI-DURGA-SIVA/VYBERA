@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Icon from '../../components/Icon';
 import EventCard from '../../components/EventCard';
 import { useApp } from '../../lib/store';
 import { useCreator } from '../../lib/creatorStore';
 import { IS_SANDBOX } from '../../lib/api';
-import { publishEvent } from '../../lib/creator';
+import { creatorSession, planStatus, publishEvent } from '../../lib/creator';
+import PlanWall, { PlanActivated, usePlanReturn } from './Plans';
 import { CREATE_CATEGORIES } from '../../lib/utils';
 import { searchPlaces } from '../../lib/location';
 import { fmtINR, fmtLongDate } from '../../lib/utils';
@@ -33,7 +34,7 @@ const VIS = [
 const to12h = (t) => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
 const DRAFT = 'beeoak.web.creator.draft';
 
-export default function CreateEvent() {
+function EventWizard({ onPlanRequired }) {
   const { creator } = useCreator();
   const { notify, loadEvents } = useApp();
   const nav = useNavigate();
@@ -120,7 +121,10 @@ export default function CreateEvent() {
       await loadEvents(true);
       notify(`“${saved.name}” is live · Event ID ${saved.id}`);
       nav(saved.isOpportunity && !saved.sandbox ? `/creator/opportunity/${encodeURIComponent(saved.id)}` : '/creator/events');
-    } catch (e) { notify(e.message, 'err'); setBusy(false); }
+    } catch (e) {
+      notify(e.message, 'err'); setBusy(false);
+      if (e.status === 402 || e.data?.code === 'PLAN_REQUIRED') onPlanRequired?.(); // plan expired meanwhile
+    }
   };
 
   const previewEv = { ...payload(), id: 'preview', banner: preview, time: to12h(ev.start), creatorName: creator.name, bookingCount: 0 };
@@ -318,6 +322,42 @@ export default function CreateEvent() {
           )}
         </div>
       </div>
+    </>
+  );
+}
+
+
+// "Create event": organizers need an active plan first (paywall → payment → continue to the wizard).
+export default function CreateEvent() {
+  const [params, setParams] = useSearchParams();
+  const returning = params.get('plan') || '';
+  const sandbox = String(creatorSession.token()).startsWith('sandbox.');
+  const [state, setState] = useState(sandbox ? { ready: true, ok: true } : { ready: false });
+  const [activated, setActivated] = useState(null);
+  const [err, setErr] = useState('');
+  const load = useCallback(() => {
+    if (sandbox) return;
+    planStatus().then((d) => setState({ ready: true, ok: !!d.subscription, plans: d.plans, creditValue: d.creditReferenceValue }))
+      .catch((e) => {
+        // Server without organizer plans (older API) → creating events isn't plan-gated there.
+        if (e.status === 404) { setState({ ready: true, ok: true }); return; }
+        setErr(e.message); setState({ ready: true, ok: false, plans: [] });
+      });
+  }, [sandbox]);
+  useEffect(() => { if (!returning) load(); }, [load, returning]);
+  usePlanReturn(returning, (r, e) => {
+    setParams({}, { replace: true });
+    if (r) setActivated(r); else { setErr(e); load(); }
+  });
+
+  if (activated) return <PlanActivated sub={activated.subscription} credits={activated.credits} onContinue={() => { setActivated(null); setState({ ready: true, ok: true }); }} />;
+  if (returning || !state.ready) return <div className="pw pw-done"><span className="spinner dark" style={{ width: 28, height: 28 }} /><p>{returning ? 'Confirming your plan payment…' : 'Checking your plan…'}</p></div>;
+  if (state.ok) return <EventWizard onPlanRequired={load} />;
+  if (!state.plans?.length) return <div className="empty"><h3>Plans unavailable</h3><p>{err || 'Please try again in a moment.'}</p></div>;
+  return (
+    <>
+      {err && <div className="alert err" style={{ maxWidth: 980, margin: '0 auto 12px' }}><Icon name="info" />{err}</div>}
+      <PlanWall plans={state.plans} creditValue={state.creditValue} onActivated={setActivated} />
     </>
   );
 }

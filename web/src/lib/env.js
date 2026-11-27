@@ -7,3 +7,7 @@ export const appUrl = (path) => (IS_NATIVE ? `${window.location.origin}/index.ht
 
 // URL for links shared with other people (must be a real website, not the app's local origin).
 export const publicUrl = (path = '') => `${import.meta.env.VITE_PUBLIC_URL || window.location.origin}${path}`;
+
+// Partners portal build (staff + creator sign-in only), e.g. `npm run dev:portal` on :5175.
+export const IS_PORTAL = import.meta.env.VITE_PORTAL === '1';
+export const STAFF_LOGIN = IS_PORTAL ? '/staff/login' : '/login?as=staff';

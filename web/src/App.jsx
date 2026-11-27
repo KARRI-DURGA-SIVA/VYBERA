@@ -23,6 +23,7 @@ import Scanner from './pages/creator/Scanner';
 import Staff from './pages/creator/Staff';
 import OppManage from './pages/creator/OppManage';
 import { PaymentReturn, StaffDashboard, StaffHome, StaffJoin, StaffLayout } from './pages/staff/StaffPages';
+import { AdminBookings, AdminCreators, AdminEvents, AdminLayout, AdminLogin, AdminOverview, AdminPayments, AdminUsers } from './pages/admin/AdminPages';
 
 function RequireAuth({ children }) {
   const { user, authReady } = useApp();
@@ -49,8 +50,17 @@ export default function App() {
         <Route index element={<StaffHome />} />
         <Route path="m/:memberId" element={<StaffDashboard />} />
       </Route>
+      <Route path="admin" element={<AdminLayout />}>
+        <Route index element={<AdminOverview />} />
+        <Route path="creators" element={<AdminCreators />} />
+        <Route path="events" element={<AdminEvents />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="bookings" element={<AdminBookings />} />
+        <Route path="payments" element={<AdminPayments />} />
+      </Route>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="admin/login" element={<div className="wrap section"><AdminLogin /></div>} />
         <Route path="explore" element={<Explore />} />
         <Route path="saved" element={<Saved />} />
         <Route path="search" element={<Search />} />

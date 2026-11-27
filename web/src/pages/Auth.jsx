@@ -4,6 +4,7 @@ import Icon from '../components/Icon';
 import { useApp } from '../lib/store';
 import { IS_SANDBOX, forgotPassword, sendOtp, verifyOtp } from '../lib/api';
 import { staffLogin } from '../lib/staff';
+import { adminLogin } from '../lib/admin';
 
 function AuthArt({ title, sub }) {
   return (
@@ -91,7 +92,11 @@ export function Login() {
         const d = await forgotPassword(id.trim());
         setMsg(d.message || 'If that email is registered, a reset link has been sent.');
       } else {
-        const u = await login(id, pw);
+        let u;
+        try { u = await login(id, pw); } catch (custErr) {
+          // Admin credentials entered on the customer sign-in → open the admin dashboard.
+          try { const a = await adminLogin(id, pw); notify(`Signed in as ${a.role || 'admin'}`); nav('/admin', { replace: true }); setBusy(false); return; } catch { throw custErr; }
+        }
         notify(`Welcome back, ${u.firstName || 'friend'}!`);
         nav(to, { replace: true });
       }

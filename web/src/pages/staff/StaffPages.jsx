@@ -7,7 +7,7 @@ import { PENDING_PAY, mediaUrl, simulatePayment, startPayment, storage, submitPa
 import { customerLink, recruitLink, staffAllocate, staffConfirmPurchase, staffDashboard, staffInvite, staffPurchase, staffRegister, staffSession, staffTeamMember } from '../../lib/staff';
 import { fmtDate, fmtINR } from '../../lib/utils';
 import { PageLoader } from '../Details';
-import { appUrl } from '../../lib/env';
+import { STAFF_LOGIN, appUrl } from '../../lib/env';
 
 const money = (n) => (Number(n || 0) === 0 ? '₹0' : fmtINR(n));
 const initials = (n) => String(n || '?').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -18,7 +18,7 @@ export function StaffLayout() {
   const nav = useNavigate();
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
-  if (!staffSession.token()) return <Navigate to="/login?as=staff" replace />;
+  if (!staffSession.token()) return <Navigate to={STAFF_LOGIN} replace />;
   const user = staffSession.user();
   return (
     <div className="cr-shell">
@@ -29,7 +29,7 @@ export function StaffLayout() {
           <div className="cr-top-right">
             {staffSession.memberships().length > 1 && <Link to="/staff" className="btn btn-ghost btn-sm">Switch event</Link>}
             <span className="user-chip" style={{ cursor: 'default' }}><span className="avatar gold">{initials(user?.name)}</span><span>{user?.name || 'Staff'}</span></span>
-            <button className="btn btn-ghost btn-sm" onClick={() => { staffSession.clear(); notify('Signed out of staff mode'); nav('/login?as=staff'); }}><Icon name="logout" size={14} /> Sign out</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { staffSession.clear(); notify('Signed out of staff mode'); nav(STAFF_LOGIN); }}><Icon name="logout" size={14} /> Sign out</button>
           </div>
         </div>
       </header>
