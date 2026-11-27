@@ -557,7 +557,7 @@ module.exports = function opportunity(app, deps) {
     if (!payuConfig.key || !payuConfig.salt) return fail(res, 500, "Payments are not configured");
     const c = await pool.query("SELECT name, email, phone FROM creator_accounts WHERE id=$1", [req.creator.sub]);
     const creator = c.rows[0] || {};
-    const origin = `https://${req.get("host")}`;
+    const origin = process.env.PAYU_CALLBACK_BASE || `https://${req.get("host")}`;
     const plan = planById(sub.plan_id);
     const fields = {
       key: payuConfig.key, txnid: sub.id, amount: formatPayuAmount(Number(sub.price)),
@@ -739,7 +739,7 @@ module.exports = function opportunity(app, deps) {
     if (t.status !== "pending_payment") return fail(res, 409, `Already ${t.status}`);
     if (paymentMode().mode === "simulator") return res.json({ mode: "simulator", amount: t.amount });
     if (!payuConfig.key || !payuConfig.salt) return fail(res, 500, "Payments are not configured");
-    const origin = `${req.protocol === "http" && /localhost|127\.0\.0\.1/.test(req.get("host")) ? "http" : "https"}://${req.get("host")}`;
+    const origin = process.env.PAYU_CALLBACK_BASE || `${req.protocol === "http" && /localhost|127\.0\.0\.1/.test(req.get("host")) ? "http" : "https"}://${req.get("host")}`;
     const fields = {
       key: payuConfig.key, txnid: req.body.txnid, amount: formatPayuAmount(t.amount),
       productinfo: cleanPayuText(`BEE-OAK - ${t.label}`, 100), firstname: cleanPayuText(t.name || "BEE-OAK Guest", 60),

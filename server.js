@@ -3499,7 +3499,7 @@ app.post("/payments/payu/initiate", async (req, res) => {
         return res.status(404).json({ error: EVENT_NOT_FOUND_ERROR });
       }
     }
-    const origin = `https://${req.get("host")}`;
+    const origin = process.env.PAYU_CALLBACK_BASE || `https://${req.get("host")}`;
     const txnid = String(
       req.body.txnid || `VYB${Date.now()}${crypto.randomBytes(3).toString("hex")}`,
     ).slice(0, 40);
