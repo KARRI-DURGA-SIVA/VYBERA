@@ -16,11 +16,11 @@ const Check = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" 
 
 const PERKS = (p, yearly) => [
   ['ticket', `${p.monthlyCredits.toLocaleString('en-IN')} ticket credits ${p.trial ? `for ${p.trialDays} days` : 'every month'}`],
-  ['grid', `${p.featureCount}/${p.featureTotal} organizer features`],
+  ['layers', `${p.featureCount}/${p.featureTotal} organizer features`],
   ['edit', 'Create & publish events'],
   ['card', 'Ticket tiers, prices & booking limits'],
   ['shield', 'Free QR check-ins — never use credits'],
-  ['spark', '₹0 platform fee on this plan'],
+  ['bolt', '₹0 platform fee on this plan'],
   ['cal', p.trial ? `Free for ${p.trialDays} days · no payment` : yearly ? 'Billed once for 12 months' : 'Billed monthly · renews each month'],
 ];
 
@@ -69,7 +69,7 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
         </div>
       </div>
 
-      <div className="pw-cards" role="radiogroup" aria-label="Plan">
+      <div className="pw-cards" role="radiogroup" aria-label="Plan" style={{ '--n': all.length }}>
         {all.map((p) => {
           const on = p.id === pick;
           const amt = p.trial ? 0 : yearly ? p.annualPrice : p.monthlyPrice;
@@ -92,7 +92,7 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
 
       <div className="pw-perks">
         <div className="pw-perks-h"><b>{plan.name}</b><span>{plan.trial ? 'Free trial includes' : 'Everything in this plan'}</span></div>
-        <ul>{PERKS(plan, yearly).map(([ic, t]) => <li key={t}><Icon name={ic} size={18} /><span>{t}</span><Check /></li>)}</ul>
+        <ul>{PERKS(plan, yearly).map(([ic, t]) => <li key={t}><span className="pw-pi"><Icon name={ic} size={18} /></span><span>{t}</span><Check /></li>)}</ul>
         <p className="pw-note">1 credit = 1 digital ticket issued · credit value ₹{creditValue.toFixed(2)} each</p>
       </div>
 
