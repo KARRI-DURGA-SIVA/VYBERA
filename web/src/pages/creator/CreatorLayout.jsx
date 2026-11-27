@@ -35,13 +35,18 @@ export default function CreatorLayout() {
   const [menu, setMenu] = useState(false);
   const [plan, setPlan] = useState(null);
   const [evCount, setEvCount] = useState(null);
-  const [side, setSide] = useState(() => window.matchMedia('(min-width: 901px)').matches);
+  const [side, setSideState] = useState(() => window.matchMedia('(min-width: 901px)').matches && (() => { try { return localStorage.getItem('beeoak.web.hubSide') !== 'closed'; } catch { return true; } })());
+  const setSide = (v) => setSideState((cur) => {
+    const next = typeof v === 'function' ? v(cur) : v;
+    if (window.matchMedia('(min-width: 901px)').matches) { try { localStorage.setItem('beeoak.web.hubSide', next ? 'open' : 'closed'); } catch { /* private mode */ } }
+    return next;
+  });
   useEffect(() => {
     if (!creator || String(creatorSession.token()).startsWith('sandbox.')) return;
     planStatus().then(setPlan).catch(() => setPlan(null));
   }, [creator, pathname]);
   useEffect(() => { if (creator) myEvents(creator).then((l) => setEvCount(l.length)).catch(() => {}); }, [creator]);
-  useEffect(() => { window.scrollTo(0, 0); setMenu(false); if (window.matchMedia('(max-width: 900px)').matches) setSide(false); }, [pathname]);
+  useEffect(() => { window.scrollTo(0, 0); setMenu(false); if (window.matchMedia('(max-width: 900px)').matches) setSideState(false); }, [pathname]);
   const sub = plan?.subscription; const cr = plan?.credits;
   const tag = sub ? (sub.billingPeriod === 'trial' ? 'Trial' : 'Active') : plan ? 'Free' : '';
   const pct = cr?.allocated ? Math.min(100, Math.round((cr.consumed / cr.allocated) * 100)) : 0;

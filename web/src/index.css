@@ -3252,3 +3252,10 @@ body::before { background: var(--cream); }
 .oh:not(.side-open) .oh-burger svg { transform: none; }
 .oh .cr-body { transition: grid-template-columns .42s cubic-bezier(.4, 0, .2, 1); }
 .oh-side { transition: transform .42s cubic-bezier(.4, 0, .2, 1), opacity .32s ease; }
+/* Sidebar closed → page content sits in the middle of the screen */
+.oh .cr-main { width: 100%; }
+.oh .ohd-cards { transition: max-width .42s cubic-bezier(.4, 0, .2, 1); }
+@media (min-width: 901px) {
+  .oh:not(.side-open) .cr-main { max-width: 1120px; margin-inline: auto; }
+  .oh:not(.side-open) .ohd-cards { max-width: none; }
+}
