@@ -570,6 +570,7 @@ module.exports = function opportunity(app, deps) {
     await savePaymentTransaction(fields, "Pending", false);
     const returnUrl = String(req.body.returnUrl || "");
     if (/^https?:\/\//.test(returnUrl)) await pool.query("UPDATE payment_transactions SET return_url=$1, purpose='subscription' WHERE txnid=$2", [returnUrl.slice(0, 300), sub.id]);
+    if (req.body.intent === true) return res.json({ mode: "intent", intentUrl: await payuUpiIntent(req, fields), txnid: sub.id });
     res.json({ mode: "payu", action: payuConfig.action, fields });
   }));
 
@@ -790,6 +791,26 @@ module.exports = function opportunity(app, deps) {
     if (!payuConfig.key || !payuConfig.salt || !payuConfig.verifyAction) return fail(res, 500, "Payments are not configured");
     res.json({ status: await payuCheck(txnid, t.amount) });
   }));
+
+  // PayU UPI INTENT (S2S): returns a upi://pay link for QR codes / UPI apps, or throws.
+  async function payuUpiIntent(req, fields) {
+    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || String(req.socket.remoteAddress || "127.0.0.1").replace(/^::ffff:/, "");
+    const r = await fetch(payuConfig.action, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ ...fields, pg: "UPI", bankcode: "INTENT", txn_s2s_flow: "4", s2s_client_ip: ip, s2s_device_info: String(req.get("user-agent") || "BEE-OAK").slice(0, 255) }),
+    });
+    const raw = await r.text();
+    let data = {}; try { data = JSON.parse(raw); } catch { data = {}; }
+    const result = data.result || {}; const meta = data.metaData || data.metadata || {};
+    const intentData = String(result.intentURIData || result.intentUriData || "").trim();
+    if (!r.ok || !intentData) {
+      const msg = meta.message || data.message || "PayU could not create a UPI payment request";
+      await savePaymentTransaction(fields, "Failed", false, msg);
+      throw httpError(502, msg);
+    }
+    return intentData.startsWith("upi://") ? intentData : `upi://pay?${intentData.replace(/^\?/, "")}`;
+  }
 
   // PayU verify_payment for one txnid; on success (and amount >= expected) records it as verified.
   async function payuCheck(txnid, expectedAmount) {
