@@ -3161,7 +3161,20 @@ app.patch("/admin/creators/:creatorId/documents/:documentId/status", requireAdmi
     if (!result.rows.length) {
       return res.status(404).json({ error: "Creator document not found" });
     }
-    res.json({ success: true, document: publicCreatorKycDocument(result.rows[0]) });
+    // Verifying the last pending document gives the creator access: a Pending creator whose
+    // documents are all verified is approved and can sign in to creator mode.
+    let creatorStatus = null;
+    if (status === "Verified") {
+      const approved = await pool.query(
+        `UPDATE creator_accounts SET kyc_status='Approved'
+         WHERE id=$1 AND kyc_status='Pending'
+           AND NOT EXISTS (SELECT 1 FROM creator_kyc_documents WHERE creator_id=$1 AND verification_status <> 'Verified')
+         RETURNING kyc_status`,
+        [creatorId],
+      );
+      if (approved.rows.length) creatorStatus = "Approved";
+    }
+    res.json({ success: true, document: publicCreatorKycDocument(result.rows[0]), creatorStatus });
   } catch (err) {
     console.error("Creator document verification failed:", err);
     res.status(500).json({ error: "Could not update document verification" });
