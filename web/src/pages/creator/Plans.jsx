@@ -21,11 +21,11 @@ const PERKS = (p, yearly) => [
   ['cal', p.trial ? `Free for ${p.trialDays} days · no payment` : yearly ? 'Billed once for 12 months' : 'Billed monthly · renews each month'],
 ];
 
-export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3.5, onActivated }) {
+export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3.5, onActivated, current = null }) {
   const { notify } = useApp();
   const [period, setPeriod] = useState('yearly');
   const all = useMemo(() => [...(trial && trialAvailable ? [trial] : []), ...plans], [trial, trialAvailable, plans]);
-  const [pick, setPick] = useState(() => (trial && trialAvailable ? trial.id : (plans.find((p) => p.popular) || plans[0]).id));
+  const [pick, setPick] = useState(() => (current && plans.some((p) => p.id === current.planId) ? current.planId : trial && trialAvailable ? trial.id : (plans.find((p) => p.popular) || plans[0]).id));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [sim, setSim] = useState(null);
@@ -75,6 +75,7 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
             <button key={p.id} type="button" role="radio" aria-checked={on} className={`pw-c${on ? ' on' : ''}${p.trial ? ' trial' : ''}${p.popular ? ' pop' : ''}`} onClick={() => setPick(p.id)}>
               {p.popular && <span className="pw-ribbon">Most popular</span>}
               {p.trial && <span className="pw-ribbon free">Start here</span>}
+              {current?.planId === p.id && <span className="pw-ribbon cur">Current plan</span>}
               <span className="pw-c-name">{p.name}</span>
               <span className="pw-c-price">{inr(amt)}<small>{p.trial ? ` · ${p.trialDays} days` : `/${yearly ? 'year' : 'month'}`}</small></span>
               <span className="pw-c-sub">{p.trial ? 'No card needed · one-time' : yearly ? <>≈ {inr(Math.round(p.annualPrice / 12))}/month · save {inr(p.annualSaving)}</> : <>{inr(p.monthlyPrice * 12)} a year</>}</span>
@@ -94,7 +95,8 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
       </div>
 
       {err && <div className="alert err pw-err"><Icon name="info" />{err}</div>}
-      <button type="button" className={`pw-cta${plan.trial ? ' white' : ''}`} onClick={subscribe} disabled={busy}>
+      {current && <div className="pw-current"><Icon name="info" size={18} /><span>You’re on <b>{current.plan}</b> until {new Date(current.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. You can choose a new plan when it ends — mid-term upgrades open soon.</span></div>}
+      <button type="button" className={`pw-cta${plan.trial ? ' white' : ''}`} onClick={subscribe} disabled={busy || !!current}>
         {busy && <span className="spinner dark" />}{plan.trial ? `Start free trial · ₹0` : `Subscribe to ${plan.name} · ${inr(price)}/${yearly ? 'year' : 'month'}`}
       </button>
       <p className="pw-fine">{plan.trial ? `${plan.monthlyCredits} credits for ${plan.trialDays} days, then choose a plan to keep creating events.` : `${yearly ? 'Renews yearly' : 'Renews monthly'} · ${plan.monthlyCredits.toLocaleString('en-IN')} credits every month · cancel anytime`}</p>

@@ -7,6 +7,7 @@ import { IS_SANDBOX } from '../../lib/api';
 import { PageLoader } from '../Details';
 import CreatorAuth from './CreatorAuth';
 import { IS_PORTAL } from '../../lib/env';
+import { creatorSession, planStatus } from '../../lib/creator';
 
 const NAV = [
   { to: '/creator', label: 'Dashboard', icon: 'grid', end: true },
@@ -15,6 +16,7 @@ const NAV = [
   { to: '/creator/revenue', label: 'Revenue', icon: 'card' },
   { to: '/creator/scanner', label: 'QR scanner', icon: 'qr' },
   { to: '/creator/staff', label: 'Staff', icon: 'users' },
+  { to: '/creator/plans', label: 'Upgrade plan', icon: 'spark', plan: true },
 ];
 
 export default function CreatorLayout() {
@@ -23,6 +25,11 @@ export default function CreatorLayout() {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const [menu, setMenu] = useState(false);
+  const [planTag, setPlanTag] = useState('');
+  useEffect(() => {
+    if (!creator || String(creatorSession.token()).startsWith('sandbox.')) return;
+    planStatus().then((d) => setPlanTag(d.subscription ? (d.subscription.billingPeriod === 'trial' ? 'Trial' : d.subscription.plan) : 'Free')).catch(() => setPlanTag(''));
+  }, [creator, pathname]);
   useEffect(() => { window.scrollTo(0, 0); setMenu(false); }, [pathname]);
 
   const body = !ready && !creator ? <PageLoader /> : !creator ? <CreatorAuth /> : <Outlet />;
@@ -59,7 +66,7 @@ export default function CreatorLayout() {
         {creator && (
           <aside className="cr-side">
             <nav>
-              {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}><Icon name={n.icon} />{n.label}</NavLink>)}
+              {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={n.plan ? 'cr-nav-plan' : undefined}><Icon name={n.icon} />{n.label}{n.plan && <em className="cr-plan-tag">{planTag}</em>}</NavLink>)}
             </nav>
             <div className="cr-side-card">
               <span className="eyebrow">KYC</span>

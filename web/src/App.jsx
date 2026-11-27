@@ -22,6 +22,7 @@ import CreateEvent from './pages/creator/CreateEvent';
 import Scanner from './pages/creator/Scanner';
 import Staff from './pages/creator/Staff';
 import OppManage from './pages/creator/OppManage';
+import UpgradePlan from './pages/creator/UpgradePlan';
 import { PaymentReturn, StaffDashboard, StaffHome, StaffJoin, StaffLayout } from './pages/staff/StaffPages';
 import { AdminBookings, AdminCreators, AdminEvents, AdminLayout, AdminLogin, AdminOverview, AdminPayments, AdminUsers } from './pages/admin/AdminPages';
 
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="scanner" element={<Scanner />} />
         <Route path="staff" element={<Staff />} />
         <Route path="opportunity/:id" element={<OppManage />} />
+        <Route path="plans" element={<UpgradePlan />} />
         <Route path="*" element={<CreatorDashboard />} />
       </Route>
       <Route path="staff" element={<StaffLayout />}>
