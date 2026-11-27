@@ -1637,6 +1637,8 @@ app.post("/creator/events", requireCreator, async (req, res) => {
       visibility,
       tickets,
     } = req.body || {};
+    const planError = await opp.planGate(req.creator.sub);
+    if (planError) return res.status(402).json({ error: planError, code: "PLAN_REQUIRED" });
     const extras = opp.normalizeEventInput(req.body || {});
     const cleanTickets = Array.isArray(tickets)
       ? tickets

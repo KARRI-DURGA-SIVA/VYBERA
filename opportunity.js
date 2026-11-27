@@ -53,6 +53,35 @@ module.exports = function opportunity(app, deps) {
 
   /* ------------------------------------------------------------------ schema */
   async function initDb() {
+    // Organizer subscriptions + auditable credit ledger (1 credit = 1 digital ticket issued).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS org_subscriptions (
+        id TEXT PRIMARY KEY,
+        organizer_id INTEGER NOT NULL,
+        plan_id TEXT NOT NULL,
+        billing_period TEXT NOT NULL CHECK (billing_period IN ('monthly','yearly')),
+        price NUMERIC(12,2) NOT NULL,
+        monthly_credits INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending_payment',
+        starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ,
+        payment_txnid TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), activated_at TIMESTAMPTZ)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS org_subscriptions_org ON org_subscriptions (organizer_id, status)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS org_credit_ledger (
+        id BIGSERIAL PRIMARY KEY,
+        organizer_id INTEGER NOT NULL,
+        subscription_id TEXT,
+        plan_id TEXT, billing_period TEXT,
+        credit_type TEXT NOT NULL DEFAULT 'subscription',
+        credits INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        period_index INTEGER,
+        ticket_id TEXT, event_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS org_credit_alloc_once ON org_credit_ledger (subscription_id, period_index) WHERE reason = 'monthly_allocation'`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS org_credit_ticket_once ON org_credit_ledger (ticket_id) WHERE reason = 'ticket_issued'`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS org_credit_ledger_org ON org_credit_ledger (organizer_id)`);
     await pool.query(`
       ALTER TABLE creator_events
         ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -395,6 +424,166 @@ module.exports = function opportunity(app, deps) {
   }));
 
   /* ======================================================================= */
+  /* Organizer subscriptions & credits                                       */
+  /* ======================================================================= */
+  // Central plan configuration. Price and credit allowance are separate values: the ₹3.50 credit
+  // reference value is informational only and never used to derive a price.
+  const CREDIT_REFERENCE_VALUE = 3.5;
+  const FEATURE_TOTAL = 44;
+  const PLANS = [
+    { id: "STARTER", name: "Starter", monthlyCredits: 500, monthlyPrice: 1299, annualPrice: 12999, featureCount: 16 },
+    { id: "GROWTH", name: "Growth", monthlyCredits: 800, monthlyPrice: 2499, annualPrice: 24999, featureCount: 34 },
+    { id: "BUSINESS", name: "Business", monthlyCredits: 1300, monthlyPrice: 3999, annualPrice: 39999, featureCount: 44, popular: true },
+    { id: "ENTERPRISE", name: "Enterprise", monthlyCredits: 3000, monthlyPrice: 6999, annualPrice: 69999, featureCount: 44 },
+  ];
+  const planById = (id) => PLANS.find((p) => p.id === String(id || "").toUpperCase());
+  const planView = (p) => ({ ...p, featureTotal: FEATURE_TOTAL, annualSaving: p.monthlyPrice * 12 - p.annualPrice, creditReferenceValue: Math.round(p.monthlyCredits * CREDIT_REFERENCE_VALUE * 100) / 100 });
+
+  async function activeSubscription(db, organizerId) {
+    const r = await db.query("SELECT * FROM org_subscriptions WHERE organizer_id=$1 AND status='active' AND ends_at > NOW() ORDER BY ends_at DESC LIMIT 1", [organizerId]);
+    return r.rows[0] || null;
+  }
+  // Monthly allowance: one allocation per started month of the subscription (yearly = up to 12).
+  async function ensureAllocations(db, sub) {
+    if (!sub || sub.status !== "active") return;
+    const months = sub.billing_period === "yearly" ? 12 : 1;
+    const start = new Date(sub.starts_at); const now = new Date();
+    let elapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + (now.getDate() >= start.getDate() ? 1 : 0);
+    elapsed = Math.max(1, Math.min(months, elapsed));
+    for (let i = 0; i < elapsed; i++) {
+      await db.query(
+        `INSERT INTO org_credit_ledger (organizer_id, subscription_id, plan_id, billing_period, credit_type, credits, reason, period_index)
+         VALUES ($1,$2,$3,$4,'subscription',$5,'monthly_allocation',$6) ON CONFLICT DO NOTHING`,
+        [sub.organizer_id, sub.id, sub.plan_id, sub.billing_period, sub.monthly_credits, i]);
+    }
+  }
+  // Balance of the organizer's CURRENT plan only. Carry-over between plans/renewals is not decided
+  // in the spec, so credits are not rolled over (no active plan = 0 credits).
+  async function creditSummary(db, organizerId) {
+    const sub = await activeSubscription(db, organizerId);
+    if (!sub) return { allocated: 0, consumed: 0, remaining: 0 };
+    const r = await db.query(
+      `SELECT COALESCE(SUM(credits) FILTER (WHERE credits > 0),0)::int AS allocated,
+              COALESCE(-SUM(credits) FILTER (WHERE credits < 0),0)::int AS consumed
+       FROM org_credit_ledger WHERE organizer_id=$1 AND subscription_id=$2`, [organizerId, sub.id]);
+    const { allocated, consumed } = r.rows[0];
+    return { allocated, consumed, remaining: allocated - consumed };
+  }
+  async function hasPlanHistory(db, organizerId) {
+    const r = await db.query("SELECT 1 FROM org_subscriptions WHERE organizer_id=$1 AND status IN ('active','expired') LIMIT 1", [organizerId]);
+    return r.rows.length > 0;
+  }
+  // Booking-time check: organizers on the credit model can't issue more tickets than credits left
+  // (counting tickets already held for payment). Organizers who never subscribed are unaffected.
+  async function assertCredits(db, ev, qty) {
+    if (!(await hasPlanHistory(db, ev.creator_id))) return;
+    await ensureAllocations(db, await activeSubscription(db, ev.creator_id));
+    const { remaining } = await creditSummary(db, ev.creator_id);
+    const held = await db.query(
+      `SELECT COALESCE(SUM(h.qty),0)::int AS n FROM opp_holds h JOIN creator_events e ON e.id=h.event_id
+       WHERE e.creator_id=$1 AND h.status='pending_payment' AND h.expires_at > NOW()`, [ev.creator_id]);
+    if (remaining - held.rows[0].n < qty) throw httpError(409, "This event has reached its ticket limit for now. Please try again later.");
+  }
+  async function consumeCredits(db, ev, bookingId, qty) {
+    if (!(await hasPlanHistory(db, ev.creator_id))) return;
+    const sub = await activeSubscription(db, ev.creator_id);
+    await db.query(
+      `INSERT INTO org_credit_ledger (organizer_id, subscription_id, plan_id, billing_period, credit_type, credits, reason, ticket_id, event_id)
+       VALUES ($1,$2,$3,$4,'subscription',$5,'ticket_issued',$6,$7) ON CONFLICT DO NOTHING`,
+      [ev.creator_id, sub ? sub.id : null, sub ? sub.plan_id : null, sub ? sub.billing_period : null, -Math.abs(qty), bookingId, ev.id]);
+  }
+  // Used by POST /creator/events: publishing needs an active plan.
+  async function planGate(organizerId) {
+    const sub = await activeSubscription(pool, organizerId);
+    return sub ? null : "Choose a BEE-OAK organizer plan to create events.";
+  }
+  const subView = (sub) => sub && ({
+    id: sub.id, planId: sub.plan_id, plan: planById(sub.plan_id) ? planById(sub.plan_id).name : sub.plan_id, billingPeriod: sub.billing_period,
+    price: Number(sub.price), monthlyCredits: sub.monthly_credits, status: sub.status, startsAt: sub.starts_at, renewalDate: sub.ends_at,
+  });
+
+  app.get("/v2/creator/plans", (req, res) => res.json({ plans: PLANS.map(planView), creditReferenceValue: CREDIT_REFERENCE_VALUE, featureTotal: FEATURE_TOTAL }));
+
+  app.get("/v2/creator/subscription", requireCreatorV2, wrap(async (req, res) => {
+    const sub = await activeSubscription(pool, req.creator.sub);
+    await ensureAllocations(pool, sub);
+    res.json({ plans: PLANS.map(planView), subscription: subView(sub), credits: await creditSummary(pool, req.creator.sub), creditReferenceValue: CREDIT_REFERENCE_VALUE });
+  }));
+
+  // Start a plan purchase. Upgrades/downgrades need an approved proration policy, so an organizer
+  // with an active plan can't buy another until it ends.
+  app.post("/v2/creator/subscription", requireCreatorV2, wrap(async (req, res) => {
+    const plan = planById(req.body && req.body.planId);
+    const period = req.body && req.body.billingPeriod === "yearly" ? "yearly" : "monthly";
+    if (!plan) return fail(res, 400, "Choose a plan");
+    const current = await activeSubscription(pool, req.creator.sub);
+    if (current) return fail(res, 409, `Your ${planById(current.plan_id).name} plan is active until ${new Date(current.ends_at).toDateString()}`);
+    const id = `SUB-${Date.now()}${crypto.randomBytes(2).toString("hex")}`;
+    const price = period === "yearly" ? plan.annualPrice : plan.monthlyPrice;
+    await pool.query(
+      "INSERT INTO org_subscriptions (id, organizer_id, plan_id, billing_period, price, monthly_credits) VALUES ($1,$2,$3,$4,$5,$6)",
+      [id, req.creator.sub, plan.id, period, price, plan.monthlyCredits]);
+    res.status(201).json({ subscriptionId: id, amount: price, payment: paymentMode() });
+  }));
+
+  async function ownedPendingSub(id, organizerId) {
+    const r = await pool.query("SELECT * FROM org_subscriptions WHERE id=$1 AND organizer_id=$2", [id, organizerId]);
+    if (!r.rows.length) throw httpError(404, "Subscription not found");
+    return r.rows[0];
+  }
+
+  app.post("/v2/creator/subscription/:id/pay", requireCreatorV2, wrap(async (req, res) => {
+    const sub = await ownedPendingSub(req.params.id, req.creator.sub);
+    if (sub.status !== "pending_payment") return fail(res, 409, `Already ${sub.status}`);
+    if (paymentMode().mode === "simulator") return res.json({ mode: "simulator", amount: Number(sub.price) });
+    if (!payuConfig.key || !payuConfig.salt) return fail(res, 500, "Payments are not configured");
+    const c = await pool.query("SELECT name, email, phone FROM creator_accounts WHERE id=$1", [req.creator.sub]);
+    const creator = c.rows[0] || {};
+    const origin = `https://${req.get("host")}`;
+    const plan = planById(sub.plan_id);
+    const fields = {
+      key: payuConfig.key, txnid: sub.id, amount: formatPayuAmount(Number(sub.price)),
+      productinfo: cleanPayuText(`BEE-OAK ${plan.name} plan (${sub.billing_period})`, 100), firstname: cleanPayuText(creator.name || "BEE-OAK Organizer", 60),
+      email: String(creator.email || "organizer@beeoak.in").slice(0, 100), phone: String(creator.phone || "9999999999").replace(/\D/g, "").slice(-10) || "9999999999",
+      surl: `${origin}/payments/payu/success?booking=${encodeURIComponent(sub.id)}`, furl: `${origin}/payments/payu/failure?booking=${encodeURIComponent(sub.id)}`,
+      udf1: sub.id, udf2: "", udf3: plan.id, udf4: sub.billing_period, udf5: "beeoak-plan", service_provider: "payu_paisa",
+    };
+    fields.hash = makePayuHash(fields);
+    await savePaymentTransaction(fields, "Pending", false);
+    const returnUrl = String(req.body.returnUrl || "");
+    if (/^https?:\/\//.test(returnUrl)) await pool.query("UPDATE payment_transactions SET return_url=$1, purpose='subscription' WHERE txnid=$2", [returnUrl.slice(0, 300), sub.id]);
+    res.json({ mode: "payu", action: payuConfig.action, fields });
+  }));
+
+  app.post("/v2/creator/subscription/:id/simulate", requireCreatorV2, wrap(async (req, res) => {
+    if (process.env.PAYMENT_SIMULATOR !== "1") return fail(res, 404, "Not found");
+    const sub = await ownedPendingSub(req.params.id, req.creator.sub);
+    const ok = req.body.outcome !== "fail";
+    await savePaymentTransaction({ txnid: sub.id, amount: Number(sub.price), udf1: sub.id, udf3: sub.plan_id, udf4: sub.billing_period, mihpayid: `SIM-${Date.now()}` },
+      ok ? "Success" : "Failed", ok, ok ? "" : "Simulated failure");
+    res.json({ ok: true, outcome: ok ? "success" : "fail" });
+  }));
+
+  // Activate after a verified payment (PayU callback, PayU verify API, or the local simulator).
+  app.post("/v2/creator/subscription/:id/confirm", requireCreatorV2, wrap(async (req, res) => {
+    const sub = await ownedPendingSub(req.params.id, req.creator.sub);
+    if (sub.status === "active") return res.json({ subscription: subView(sub), credits: await creditSummary(pool, sub.organizer_id) });
+    if (sub.status !== "pending_payment") return fail(res, 409, `Subscription is ${sub.status}`);
+    let txn = await verifiedPayment(pool, sub.id, Number(sub.price));
+    if (!txn && paymentMode().mode !== "simulator") { if ((await payuCheck(sub.id, Number(sub.price))) === "success") txn = await verifiedPayment(pool, sub.id, Number(sub.price)); }
+    if (!txn) return fail(res, 402, "Payment has not been verified yet");
+    const current = await activeSubscription(pool, sub.organizer_id);
+    if (current) return fail(res, 409, "Another plan is already active on this account");
+    const r = await pool.query(
+      `UPDATE org_subscriptions SET status='active', payment_txnid=$2, activated_at=NOW(), starts_at=NOW(),
+         ends_at = NOW() + (CASE WHEN billing_period='yearly' THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END)
+       WHERE id=$1 AND status='pending_payment' RETURNING *`, [sub.id, txn.txnid]);
+    await ensureAllocations(pool, r.rows[0]);
+    await audit(pool, `creator:${sub.organizer_id}`, "subscription.activated", "org_subscriptions", sub.id, { plan: sub.plan_id, period: sub.billing_period, price: Number(sub.price) });
+    res.json({ subscription: subView(r.rows[0]), credits: await creditSummary(pool, sub.organizer_id) });
+  }));
+
+  /* ======================================================================= */
   /* Customer bookings (all events) with server-side pricing + verified pay  */
   /* ======================================================================= */
   app.post("/v2/bookings", requireBuyerV2, wrap(async (req, res) => {
@@ -424,6 +613,7 @@ module.exports = function opportunity(app, deps) {
         const left = Number(tier.qty || 0) - (await tierSoldDirect(client, ev.id, tier.name));
         if (left < qty) throw httpError(409, left > 0 ? `Only ${left} ${tier.name} tickets left` : `${tier.name} is sold out`);
       }
+      await assertCredits(client, ev, qty);
       const u = await client.query("SELECT * FROM users WHERE id=$1", [req.buyer.sub]);
       const user = u.rows[0];
       const t = totals(tier.price, qty);
@@ -491,6 +681,7 @@ module.exports = function opportunity(app, deps) {
         [h.id, h.user_id, h.buyer_name, h.buyer_email, ev.id, ev.name, ev.event_date, [ev.venue, ev.city].filter(Boolean).join(", "), ev.banner_url,
           h.tier_name, h.unit_price, h.qty, h.total, qrToken, h.staff_id, ev.creator_id, txn ? txn.txnid : null, txn ? "paid" : "free"]);
       await client.query("UPDATE opp_holds SET status='confirmed', confirmed_at=NOW() WHERE id=$1", [h.id]);
+      await consumeCredits(client, ev, h.id, h.qty);
       await client.query(
         `UPDATE creator_events SET
            booking_count=(SELECT COALESCE(SUM(qty),0) FROM bookings WHERE event_id=$1 AND status <> 'refunded'),
@@ -579,6 +770,11 @@ module.exports = function opportunity(app, deps) {
     if (existing) return res.json({ status: "success" });
     if (paymentMode().mode === "simulator") return res.json({ status: "pending" });
     if (!payuConfig.key || !payuConfig.salt || !payuConfig.verifyAction) return fail(res, 500, "Payments are not configured");
+    res.json({ status: await payuCheck(txnid, t.amount) });
+  }));
+
+  // PayU verify_payment for one txnid; on success (and amount >= expected) records it as verified.
+  async function payuCheck(txnid, expectedAmount) {
     const command = "verify_payment";
     const hash = crypto.createHash("sha512").update([payuConfig.key, command, txnid, payuConfig.salt].join("|")).digest("hex");
     const r = await fetch(payuConfig.verifyAction, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ key: payuConfig.key, command, var1: txnid, hash }) });
@@ -586,13 +782,14 @@ module.exports = function opportunity(app, deps) {
     const tr = (data.transaction_details && data.transaction_details[txnid]) || {};
     const status = String(tr.status || "").toLowerCase(); const unmapped = String(tr.unmappedstatus || "").toLowerCase();
     const amount = Number(tr.amt || tr.amount || 0);
-    if ((status === "success" || unmapped === "captured") && amount + 0.001 >= t.amount) {
+    if ((status === "success" || unmapped === "captured") && amount + 0.001 >= Number(expectedAmount)) {
       await savePaymentTransaction({ ...tr, txnid, amount, udf1: tr.udf1 || txnid }, "Success", true);
-      return res.json({ status: "success" });
+      return "success";
     }
-    if (status === "failure" || /fail|bounced|dropped|usercancelled/.test(unmapped)) return res.json({ status: "failed" });
-    res.json({ status: "pending" });
-  }));
+    if (status === "failure" || /fail|bounced|dropped|usercancelled/.test(unmapped)) return "failed";
+    return "pending";
+  }
+
 
   // Local testing only: records a verified payment exactly where the PayU success webhook would.
   app.post("/v2/payments/simulate", wrap(async (req, res) => {
@@ -950,5 +1147,5 @@ module.exports = function opportunity(app, deps) {
     });
   }));
 
-  return { initDb, normalizeEventInput };
+  return { initDb, normalizeEventInput, planGate };
 };
