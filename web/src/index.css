@@ -3233,3 +3233,22 @@ body::before { background: var(--cream); }
 :root[data-theme="dark"] .oh-credits p, :root[data-theme="dark"] .ohd h1, :root[data-theme="dark"] .ohd-num { color: var(--ink); }
 :root[data-theme="dark"] .oh-up { background: var(--btn-bg); color: var(--btn-ink); }
 .oh .cr-body.bare { grid-template-columns: minmax(0, 1fr) !important; background: none; } .oh .cr-body.bare .cr-main { padding: 0; }
+
+/* Organizer hub: icon-only menu button; sidebar slides out to the left */
+.oh-burger { background: none !important; width: 40px; height: 40px; border-radius: 10px; transition: transform .3s var(--ease), opacity .2s; }
+.oh-burger:hover { opacity: .8; }
+.oh-burger:active { transform: scale(.92); }
+.oh:not(.side-open) .oh-burger svg { transform: rotate(90deg); }
+.oh-burger svg { transition: transform .35s var(--ease); }
+.oh .cr-body { transition: grid-template-columns .38s var(--ease); }
+.oh-side { transition: transform .38s var(--ease), opacity .3s ease; will-change: transform; }
+.oh:not(.side-open) .oh-side { display: flex !important; transform: translateX(-100%); opacity: 0; pointer-events: none; overflow: hidden; padding-left: 0; padding-right: 0; }
+@media (max-width: 900px) {
+  .oh-side { animation: none !important; }
+  .oh:not(.side-open) .oh-side { display: flex !important; transform: translateX(-105%); opacity: 1; }
+  .oh-scrim { transition: opacity .3s ease; }
+  .oh:not(.side-open) .oh-scrim { display: none; }
+}
+.oh:not(.side-open) .oh-burger svg { transform: none; }
+.oh .cr-body { transition: grid-template-columns .42s cubic-bezier(.4, 0, .2, 1); }
+.oh-side { transition: transform .42s cubic-bezier(.4, 0, .2, 1), opacity .32s ease; }

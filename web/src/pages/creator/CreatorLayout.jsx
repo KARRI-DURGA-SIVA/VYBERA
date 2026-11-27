@@ -85,7 +85,7 @@ export default function CreatorLayout() {
       <div className={`cr-body${creator ? '' : ' bare'}`}>
         {creator && side && <button type="button" className="oh-scrim" aria-label="Close menu" onClick={() => setSide(false)} />}
         {creator && (
-          <aside className="cr-side oh-side">
+          <aside className="cr-side oh-side" aria-hidden={!side}>
             <nav>
               {GROUPS.map(([title, items]) => (
                 <div key={title} className="oh-group">
