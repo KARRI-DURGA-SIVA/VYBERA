@@ -337,7 +337,7 @@ export default function CreateEvent() {
   const [err, setErr] = useState('');
   const load = useCallback(() => {
     if (sandbox) return;
-    planStatus().then((d) => setState({ ready: true, ok: !!d.subscription, plans: d.plans, creditValue: d.creditReferenceValue }))
+    planStatus().then((d) => setState({ ready: true, ok: !!d.subscription, plans: d.plans, trial: d.trial, trialAvailable: d.trialAvailable, creditValue: d.creditReferenceValue }))
       .catch((e) => {
         // Server without organizer plans (older API) → creating events isn't plan-gated there.
         if (e.status === 404) { setState({ ready: true, ok: true }); return; }
@@ -357,7 +357,7 @@ export default function CreateEvent() {
   return (
     <>
       {err && <div className="alert err" style={{ maxWidth: 980, margin: '0 auto 12px' }}><Icon name="info" />{err}</div>}
-      <PlanWall plans={state.plans} creditValue={state.creditValue} onActivated={setActivated} />
+      <PlanWall plans={state.plans} trial={state.trial} trialAvailable={state.trialAvailable} creditValue={state.creditValue} onActivated={setActivated} />
     </>
   );
 }

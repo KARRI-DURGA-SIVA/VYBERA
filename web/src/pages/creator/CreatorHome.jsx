@@ -111,7 +111,7 @@ function PlanCard() {
   const pct = c.allocated ? Math.min(100, Math.round((c.consumed / c.allocated) * 100)) : 0;
   return (
     <div className="plan-card">
-      <span className="plan-name"><small>Current plan</small><b>{sub.plan}</b><em>{sub.billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'} · renews {new Date(sub.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</em></span>
+      <span className="plan-name"><small>Current plan</small><b>{sub.plan}</b><em>{sub.billingPeriod === 'trial' ? 'Free trial' : sub.billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'} · {sub.billingPeriod === 'trial' ? 'ends' : 'renews'} {new Date(sub.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</em></span>
       <span className="plan-credits">
         <span className="plan-nums"><span><b>{c.remaining.toLocaleString('en-IN')}</b><small>credits left</small></span><span><b>{c.consumed.toLocaleString('en-IN')}</b><small>used</small></span><span><b>{c.allocated.toLocaleString('en-IN')}</b><small>allocated</small></span></span>
         <span className="plan-bar" aria-label={`${pct}% of credits used`}><i style={{ width: `${pct}%` }} /></span>

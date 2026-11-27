@@ -11,22 +11,34 @@ export const PENDING_PLAN = 'beeoak.web.pendingPlan';
 const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 const Check = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-label="Included"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>;
 
-export default function PlanWall({ plans, creditValue = 3.5, onActivated }) {
+const PERKS = (p, yearly) => [
+  ['ticket', `${p.monthlyCredits.toLocaleString('en-IN')} ticket credits ${p.trial ? `for ${p.trialDays} days` : 'every month'}`],
+  ['grid', `${p.featureCount}/${p.featureTotal} organizer features`],
+  ['edit', 'Create & publish events'],
+  ['card', 'Ticket tiers, prices & booking limits'],
+  ['shield', 'Free QR check-ins — never use credits'],
+  ['spark', '₹0 platform fee on this plan'],
+  ['cal', p.trial ? `Free for ${p.trialDays} days · no payment` : yearly ? 'Billed once for 12 months' : 'Billed monthly · renews each month'],
+];
+
+export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3.5, onActivated }) {
   const { notify } = useApp();
   const [period, setPeriod] = useState('yearly');
-  const [pick, setPick] = useState(() => (plans.find((p) => p.popular) || plans[0]).id);
+  const all = useMemo(() => [...(trial && trialAvailable ? [trial] : []), ...plans], [trial, trialAvailable, plans]);
+  const [pick, setPick] = useState(() => (trial && trialAvailable ? trial.id : (plans.find((p) => p.popular) || plans[0]).id));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [sim, setSim] = useState(null);
-  const plan = plans.find((p) => p.id === pick) || plans[0];
+  const plan = all.find((p) => p.id === pick) || all[0];
   const yearly = period === 'yearly';
-  const price = yearly ? plan.annualPrice : plan.monthlyPrice;
+  const price = plan.trial ? 0 : yearly ? plan.annualPrice : plan.monthlyPrice;
   const maxSave = useMemo(() => Math.max(...plans.map((p) => Math.round((p.annualSaving / (p.monthlyPrice * 12)) * 100))), [plans]);
 
   const subscribe = async () => {
     setErr(''); setBusy(true);
     try {
       const s = await planStart(plan.id, period);
+      if (s.activated) { notify('Free trial started'); onActivated({ subscription: s.subscription, credits: s.credits }); return; }
       storage.set(PENDING_PLAN, s.subscriptionId);
       const p = await planPay(s.subscriptionId, appUrl(`/creator/create?plan=${encodeURIComponent(s.subscriptionId)}`));
       if (p.mode === 'simulator') { setSim({ id: s.subscriptionId, amount: p.amount }); setBusy(false); return; }
@@ -51,45 +63,45 @@ export default function PlanWall({ plans, creditValue = 3.5, onActivated }) {
         <span className="pw-spark" aria-hidden="true">
           <svg width="46" height="46" viewBox="0 0 48 48" fill="currentColor"><path d="M22 4c1.4 9.6 6.4 14.6 16 16-9.6 1.4-14.6 6.4-16 16-1.4-9.6-6.4-14.6-16-16 9.6-1.4 14.6-6.4 16-16Z" /><path d="M38 30c.6 4 2.6 6 6.6 6.6-4 .6-6 2.6-6.6 6.6-.6-4-2.6-6-6.6-6.6 4-.6 6-2.6 6.6-6.6Z" opacity=".75" /></svg>
         </span>
-        <h1>Choose your organizer plan</h1>
-        <p>Pick a plan to start creating events on BEE-OAK.</p>
+        <h1>BEE-OAK for organizers</h1>
+        <p>Start free, then pick the plan that fits your events.</p>
         <div className="pw-toggle" role="radiogroup" aria-label="Billing period">
           <button type="button" role="radio" aria-checked={!yearly} className={!yearly ? 'on' : ''} onClick={() => setPeriod('monthly')}>Monthly</button>
           <button type="button" role="radio" aria-checked={yearly} className={yearly ? 'on' : ''} onClick={() => setPeriod('yearly')}>Yearly <em>Save up to {maxSave}%</em></button>
         </div>
       </div>
 
-      <div className="pw-plans" role="radiogroup" aria-label="Plan">
-        {plans.map((p) => {
+      <div className="pw-cards" role="radiogroup" aria-label="Plan">
+        {all.map((p) => {
           const on = p.id === pick;
+          const amt = p.trial ? 0 : yearly ? p.annualPrice : p.monthlyPrice;
           return (
-            <button key={p.id} type="button" role="radio" aria-checked={on} className={`pw-plan${on ? ' on' : ''}`} onClick={() => setPick(p.id)}>
-              <span className="pw-plan-top"><b>{p.name}</b>{p.popular && <span className="pw-badge">Most popular</span>}</span>
-              <span className="pw-price">{inr(yearly ? p.annualPrice : p.monthlyPrice)}<small>/{yearly ? 'year' : 'month'}</small></span>
-              <span className="pw-sub">{yearly ? <>Save {inr(p.annualSaving)} vs monthly</> : <>{inr(p.monthlyPrice * 12)} /year if paid monthly</>}</span>
-              <span className="pw-credits"><Icon name="ticket" size={15} /> {p.monthlyCredits.toLocaleString('en-IN')} ticket credits / month</span>
+            <button key={p.id} type="button" role="radio" aria-checked={on} className={`pw-c${on ? ' on' : ''}${p.trial ? ' trial' : ''}${p.popular ? ' pop' : ''}`} onClick={() => setPick(p.id)}>
+              {p.popular && <span className="pw-ribbon">Most popular</span>}
+              {p.trial && <span className="pw-ribbon free">Start here</span>}
+              <span className="pw-c-name">{p.name}</span>
+              <span className="pw-c-price">{inr(amt)}<small>{p.trial ? ` · ${p.trialDays} days` : `/${yearly ? 'year' : 'month'}`}</small></span>
+              <span className="pw-c-sub">{p.trial ? 'No card needed · one-time' : yearly ? <>≈ {inr(Math.round(p.annualPrice / 12))}/month · save {inr(p.annualSaving)}</> : <>{inr(p.monthlyPrice * 12)} a year</>}</span>
+              <span className="pw-c-credit"><b>{p.monthlyCredits.toLocaleString('en-IN')}</b> credits{p.trial ? '' : ' / month'}</span>
+              <span className="pw-c-meter" aria-label={`${p.featureCount} of ${p.featureTotal} features`}><i style={{ width: `${(p.featureCount / p.featureTotal) * 100}%` }} /></span>
+              <span className="pw-c-feat">{p.featureCount}/{p.featureTotal} features</span>
+              <span className="pw-c-dot" aria-hidden="true" />
             </button>
           );
         })}
       </div>
 
-      <div className="pw-table" role="table" aria-label="Compare plans">
-        <div className="pw-row pw-row-h" role="row">
-          <span role="columnheader">What you get</span>
-          {plans.map((p) => <span key={p.id} role="columnheader" className={p.id === pick ? 'on' : ''}>{p.name}</span>)}
-        </div>
-        <div className="pw-row" role="row"><span role="cell">Ticket credits / month</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}>{p.monthlyCredits.toLocaleString('en-IN')}</span>)}</div>
-        <div className="pw-row" role="row"><span role="cell">Organizer features</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}>{p.featureCount}/{p.featureTotal}</span>)}</div>
-        <div className="pw-row" role="row"><span role="cell">Credit value (₹{creditValue.toFixed(2)} each)</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}>{inr(p.creditReferenceValue)}</span>)}</div>
-        <div className="pw-row" role="row"><span role="cell">Event creation & publishing</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}><Check /></span>)}</div>
-        <div className="pw-row" role="row"><span role="cell">Free QR check-ins (no credits)</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}><Check /></span>)}</div>
-        <div className="pw-row" role="row"><span role="cell">Platform fee</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}>₹0</span>)}</div>
-        <div className="pw-row" role="row"><span role="cell">Full feature set (44/44)</span>{plans.map((p) => <span key={p.id} role="cell" className={p.id === pick ? 'on' : ''}>{p.featureCount >= p.featureTotal ? <Check /> : <i className="pw-dash" aria-label="Not included" />}</span>)}</div>
+      <div className="pw-perks">
+        <div className="pw-perks-h"><b>{plan.name}</b><span>{plan.trial ? 'Free trial includes' : 'Everything in this plan'}</span></div>
+        <ul>{PERKS(plan, yearly).map(([ic, t]) => <li key={t}><Icon name={ic} size={18} /><span>{t}</span><Check /></li>)}</ul>
+        <p className="pw-note">1 credit = 1 digital ticket issued · credit value ₹{creditValue.toFixed(2)} each</p>
       </div>
 
       {err && <div className="alert err pw-err"><Icon name="info" />{err}</div>}
-      <button type="button" className="pw-cta" onClick={subscribe} disabled={busy}>{busy && <span className="spinner dark" />}Subscribe to {plan.name} · {inr(price)}/{yearly ? 'year' : 'month'}</button>
-      <p className="pw-fine">{yearly ? 'Billed once for 12 months' : 'Billed monthly'} · {plan.monthlyCredits.toLocaleString('en-IN')} credits every month · 1 credit = 1 digital ticket issued</p>
+      <button type="button" className={`pw-cta${plan.trial ? ' white' : ''}`} onClick={subscribe} disabled={busy}>
+        {busy && <span className="spinner dark" />}{plan.trial ? `Start free trial · ₹0` : `Subscribe to ${plan.name} · ${inr(price)}/${yearly ? 'year' : 'month'}`}
+      </button>
+      <p className="pw-fine">{plan.trial ? `${plan.monthlyCredits} credits for ${plan.trialDays} days, then choose a plan to keep creating events.` : `${yearly ? 'Renews yearly' : 'Renews monthly'} · ${plan.monthlyCredits.toLocaleString('en-IN')} credits every month · cancel anytime`}</p>
 
       {sim && (
         <div className="modal-scrim">
@@ -113,8 +125,8 @@ export function PlanActivated({ sub, credits, onContinue }) {
   return (
     <div className="pw pw-done">
       <span className="pw-ok" aria-hidden="true"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></span>
-      <h1>You’re on {sub.plan}</h1>
-      <p>{sub.billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'} plan · renews {new Date(sub.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+      <h1>{sub.billingPeriod === 'trial' ? 'Your free trial is on' : `You’re on ${sub.plan}`}</h1>
+      <p>{sub.billingPeriod === 'trial' ? 'Free trial' : sub.billingPeriod === 'yearly' ? 'Yearly plan' : 'Monthly plan'} · {sub.billingPeriod === 'trial' ? 'ends' : 'renews'} {new Date(sub.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
       <div className="pw-credit-row">
         <span><b>{credits.allocated.toLocaleString('en-IN')}</b><small>Allocated</small></span>
         <span><b>{credits.consumed.toLocaleString('en-IN')}</b><small>Used</small></span>
