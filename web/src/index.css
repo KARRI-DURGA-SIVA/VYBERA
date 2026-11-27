@@ -3290,3 +3290,4 @@ body::before { background: var(--cream); }
 :root[data-theme="dark"] .oh-side nav a.active { background: rgba(120, 200, 150, .14); color: #bfe8cf; }
 :root[data-theme="dark"] .oh-side nav a.active svg { color: #bfe8cf; }
 :root[data-theme="dark"] .oh-side nav a.active::before { background: #8fd3ab; }
+.oh-side nav a.active::before { display: none; }
