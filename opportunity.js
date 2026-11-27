@@ -67,6 +67,8 @@ module.exports = function opportunity(app, deps) {
         payment_txnid TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), activated_at TIMESTAMPTZ)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS org_subscriptions_org ON org_subscriptions (organizer_id, status)`);
+    await pool.query(`ALTER TABLE org_subscriptions DROP CONSTRAINT IF EXISTS org_subscriptions_billing_period_check`);
+    await pool.query(`ALTER TABLE org_subscriptions ADD CONSTRAINT org_subscriptions_billing_period_check CHECK (billing_period IN ('monthly','yearly','trial'))`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS org_credit_ledger (
         id BIGSERIAL PRIMARY KEY,
@@ -430,14 +432,16 @@ module.exports = function opportunity(app, deps) {
   // reference value is informational only and never used to derive a price.
   const CREDIT_REFERENCE_VALUE = 3.5;
   const FEATURE_TOTAL = 44;
+  // One-time free trial (₹0). Duration/credits are business settings — adjust here.
+  const TRIAL = { id: "FREE", name: "Free trial", trial: true, trialDays: 14, monthlyCredits: 50, monthlyPrice: 0, annualPrice: 0, featureCount: 16 };
   const PLANS = [
     { id: "STARTER", name: "Starter", monthlyCredits: 500, monthlyPrice: 1299, annualPrice: 12999, featureCount: 16 },
     { id: "GROWTH", name: "Growth", monthlyCredits: 800, monthlyPrice: 2499, annualPrice: 24999, featureCount: 34 },
     { id: "BUSINESS", name: "Business", monthlyCredits: 1300, monthlyPrice: 3999, annualPrice: 39999, featureCount: 44, popular: true },
     { id: "ENTERPRISE", name: "Enterprise", monthlyCredits: 3000, monthlyPrice: 6999, annualPrice: 69999, featureCount: 44 },
   ];
-  const planById = (id) => PLANS.find((p) => p.id === String(id || "").toUpperCase());
-  const planView = (p) => ({ ...p, featureTotal: FEATURE_TOTAL, annualSaving: p.monthlyPrice * 12 - p.annualPrice, creditReferenceValue: Math.round(p.monthlyCredits * CREDIT_REFERENCE_VALUE * 100) / 100 });
+  const planById = (id) => [TRIAL, ...PLANS].find((p) => p.id === String(id || "").toUpperCase());
+  const planView = (p) => ({ ...p, featureTotal: FEATURE_TOTAL, annualSaving: p.trial ? 0 : p.monthlyPrice * 12 - p.annualPrice, creditReferenceValue: Math.round(p.monthlyCredits * CREDIT_REFERENCE_VALUE * 100) / 100 });
 
   async function activeSubscription(db, organizerId) {
     const r = await db.query("SELECT * FROM org_subscriptions WHERE organizer_id=$1 AND status='active' AND ends_at > NOW() ORDER BY ends_at DESC LIMIT 1", [organizerId]);
@@ -502,12 +506,16 @@ module.exports = function opportunity(app, deps) {
     price: Number(sub.price), monthlyCredits: sub.monthly_credits, status: sub.status, startsAt: sub.starts_at, renewalDate: sub.ends_at,
   });
 
-  app.get("/v2/creator/plans", (req, res) => res.json({ plans: PLANS.map(planView), creditReferenceValue: CREDIT_REFERENCE_VALUE, featureTotal: FEATURE_TOTAL }));
+  app.get("/v2/creator/plans", (req, res) => res.json({ trial: planView(TRIAL), plans: PLANS.map(planView), creditReferenceValue: CREDIT_REFERENCE_VALUE, featureTotal: FEATURE_TOTAL }));
+  async function trialUsed(organizerId) {
+    const r = await pool.query("SELECT 1 FROM org_subscriptions WHERE organizer_id=$1 AND (billing_period='trial' OR status IN ('active','expired')) LIMIT 1", [organizerId]);
+    return r.rows.length > 0;
+  }
 
   app.get("/v2/creator/subscription", requireCreatorV2, wrap(async (req, res) => {
     const sub = await activeSubscription(pool, req.creator.sub);
     await ensureAllocations(pool, sub);
-    res.json({ plans: PLANS.map(planView), subscription: subView(sub), credits: await creditSummary(pool, req.creator.sub), creditReferenceValue: CREDIT_REFERENCE_VALUE });
+    res.json({ trial: planView(TRIAL), trialAvailable: !(await trialUsed(req.creator.sub)), plans: PLANS.map(planView), subscription: subView(sub), credits: await creditSummary(pool, req.creator.sub), creditReferenceValue: CREDIT_REFERENCE_VALUE });
   }));
 
   // Start a plan purchase. Upgrades/downgrades need an approved proration policy, so an organizer
@@ -519,6 +527,16 @@ module.exports = function opportunity(app, deps) {
     const current = await activeSubscription(pool, req.creator.sub);
     if (current) return fail(res, 409, `Your ${planById(current.plan_id).name} plan is active until ${new Date(current.ends_at).toDateString()}`);
     const id = `SUB-${Date.now()}${crypto.randomBytes(2).toString("hex")}`;
+    if (plan.trial) {
+      if (await trialUsed(req.creator.sub)) return fail(res, 409, "Your free trial has already been used. Choose a plan to continue.");
+      const r = await pool.query(
+        `INSERT INTO org_subscriptions (id, organizer_id, plan_id, billing_period, price, monthly_credits, status, starts_at, ends_at, activated_at)
+         VALUES ($1,$2,$3,'trial',0,$4,'active',NOW(), NOW() + ($5 || ' days')::interval, NOW()) RETURNING *`,
+        [id, req.creator.sub, plan.id, plan.monthlyCredits, String(plan.trialDays)]);
+      await ensureAllocations(pool, r.rows[0]);
+      await audit(pool, `creator:${req.creator.sub}`, "subscription.trial_started", "org_subscriptions", id, { credits: plan.monthlyCredits, days: plan.trialDays });
+      return res.status(201).json({ subscriptionId: id, amount: 0, activated: true, subscription: subView(r.rows[0]), credits: await creditSummary(pool, req.creator.sub) });
+    }
     const price = period === "yearly" ? plan.annualPrice : plan.monthlyPrice;
     await pool.query(
       "INSERT INTO org_subscriptions (id, organizer_id, plan_id, billing_period, price, monthly_credits) VALUES ($1,$2,$3,$4,$5,$6)",
