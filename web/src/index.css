@@ -3184,7 +3184,7 @@ body::before { background: var(--cream); }
 .oh-badge.free { background: #e7ece6; color: #2f4a3c; }
 .oh-side nav a:nth-child(2) .oh-badge, .oh-side nav a .oh-badge { }
 .oh-side nav a [class*="bolt"] { }
-.oh-side .oh-group:last-child a:first-of-type svg { color: #e59a0c; }
+.oh-side a[href='/creator/plans'] svg { color: #e59a0c; }
 .oh-side nav a.active .oh-count, .oh-side nav a.active .oh-badge { background: rgba(255, 255, 255, .2); color: #fff; }
 .oh-credits { margin-top: 22px; padding: 18px 18px 16px; border-radius: 16px; border: 1px solid #dfe3dc; background: #f3f4ef; display: grid; gap: 10px; }
 .oh-credits-h { display: flex; justify-content: space-between; align-items: center; }
@@ -3408,3 +3408,24 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .oh:not(.side-open) .oh-pi::before { width: 0; }
 .side-open .oh-pi i { left: 8px; }
 .side-open .oh-pi::before { width: 8px; }
+/* Hub style shared by admin + staff: KPI cards, panels, tables */
+.oh .kpis { gap: 18px; }
+.oh .kpi { padding: 22px; border-radius: 20px; background: #fff; border: 1px solid #e1e4dd; box-shadow: 0 2px 10px -6px rgba(20, 60, 40, .2); }
+.oh .kpi small { color: #3f5b4c; font-size: 14px; }
+.oh .kpi b { color: #1f4a35; font-size: 30px; letter-spacing: -.02em; }
+.oh .kpi i { color: #1d6141; }
+.oh .panel { border-radius: 22px; background: #fff; border: 1px solid #e1e4dd; box-shadow: 0 2px 10px -6px rgba(20, 60, 40, .2); }
+.oh .panel h3 { color: #1f4a35; }
+.oh .ad-head h1, .oh .cr-head h1 { font-size: clamp(28px, 3vw, 38px); font-weight: 800; letter-spacing: -.03em; color: #1f4a35; }
+.oh .ad-head p { color: #3f5b4c; }
+.oh .ad-table { border-radius: 20px; border-color: #e1e4dd; box-shadow: 0 2px 10px -6px rgba(20, 60, 40, .2); }
+.oh .ad-th { background: #f6f8f4; color: #3f5b4c; }
+.oh .ad-tr:not(.ad-th):hover { background: #fbfcfa; }
+.oh .ad-search { border-radius: 12px; border-color: #e1e4dd; }
+.oh .ad-tabs button.on { background: #1d6141; border-color: #1d6141; }
+.oh .staff-hero { border-radius: 22px; }
+.oh .oh-credits button.oh-up { border: 0; width: 100%; cursor: pointer; }
+:root[data-theme="dark"] .oh .kpi, :root[data-theme="dark"] .oh .panel { background: var(--card); border-color: var(--line); }
+:root[data-theme="dark"] .oh .kpi b, :root[data-theme="dark"] .oh .ad-head h1 { color: var(--ink); }
+
+.staff-hero .eyebrow { color: var(--gold-2) !important; }

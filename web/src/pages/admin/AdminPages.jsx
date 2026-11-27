@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, NavLink, Outlet, useNavigate, useOutletContext } from 'react-router-dom';
+import { Link, Navigate, Outlet, useNavigate, useOutletContext } from 'react-router-dom';
+import HubShell from '../../components/HubShell';
 import Icon from '../../components/Icon';
 import { useApp } from '../../lib/store';
 import { adminCheck, adminFileUrl, adminLogin, adminSession, adminSnapshot, setCreatorStatus, setDocumentStatus, setEventStatus, setUserStatus } from '../../lib/admin';
@@ -49,7 +50,6 @@ export function AdminLogin() {
 }
 
 /* ----------------------------------------------------------------- layout */
-const NAV = [['', 'grid', 'Overview'], ['creators', 'spark', 'Creators & KYC'], ['events', 'cal', 'Events'], ['users', 'users', 'Users'], ['bookings', 'ticket', 'Bookings'], ['payments', 'card', 'Payments']];
 
 export function AdminLayout() {
   const { toast, notify } = useApp();
@@ -63,31 +63,33 @@ export function AdminLayout() {
   }, [nav]);
   useEffect(() => { if (adminSession.token()) { adminCheck().catch(() => {}); load(); } }, [load]);
   if (!adminSession.token()) return <Navigate to="/admin/login" replace />;
-  const signOut = () => { adminSession.clear(); notify('Signed out of admin'); nav('/admin/login', { replace: true }); };
-  return (
-    <div className="cr-shell ad">
-      <header className="cr-top">
-        <div className="cr-top-in">
-          <Link to="/" className="brand"><img src="/logo.png" alt="" /><span className="brand-name">BEE<b>·</b>OAK</span></Link>
-          <span className="cr-mode"><Icon name="shield" size={14} /> Admin</span>
-          <div className="cr-top-right">
-            <button className="btn btn-ghost btn-sm" onClick={load}><Icon name="spark" size={14} /> Refresh</button>
-            <span className="user-chip" style={{ cursor: 'default' }}><span className="avatar gold">{String(admin?.name || 'A').slice(0, 1)}</span><span>{admin?.role || 'Admin'}</span></span>
-            <button className="btn btn-ghost btn-sm" onClick={signOut}><Icon name="logout" size={14} /> Sign out</button>
-          </div>
-        </div>
-      </header>
-      <div className="cr-body">
-        <aside className="cr-side">
-          <nav>{NAV.map(([to, ic, label]) => <NavLink key={label} to={`/admin${to ? `/${to}` : ''}`} end={!to} className={({ isActive }) => (isActive ? 'active' : '')}><Icon name={ic} size={18} /> {label}</NavLink>)}</nav>
-        </aside>
-        <main className="cr-main">
-          {err && <div className="alert err" style={{ marginBottom: 16 }}><Icon name="info" />{err}</div>}
-          {!data ? <div className="app-loader" style={{ minHeight: 360 }}><span className="app-loader-logo"><img src="/logo.png" alt="" /></span><span className="app-loader-bar" /></div> : <Outlet context={{ data, reload: load, notify, isSuper: !!admin?.isSuperAdmin }} />}
-        </main>
-      </div>
-      {toast && <div className={`toast ${toast.tone === 'err' ? 'err' : ''}`} role="status"><span className="dot" />{toast.message}</div>}
+  const pending = data ? data.creators.filter((c) => /pending/i.test(c.status)).length : null;
+  const groups = [
+    ['Main menu', [
+      { to: '/admin', label: 'Overview', icon: 'grid', end: true },
+      { to: '/admin/creators', label: 'Creators & KYC', icon: 'shield', badge: pending || null },
+      { to: '/admin/events', label: 'Events', icon: 'cal', badge: data ? data.events.length : null },
+    ]],
+    ['Operations', [
+      { to: '/admin/users', label: 'Users', icon: 'users' },
+      { to: '/admin/bookings', label: 'Bookings', icon: 'ticket' },
+      { to: '/admin/payments', label: 'Payments', icon: 'card' },
+    ]],
+  ];
+  const footer = (
+    <div className="oh-credits">
+      <div className="oh-credits-h"><span>KYC queue</span><b>{pending ?? '—'}</b></div>
+      <p>{pending ? `${pending} creator${pending === 1 ? '' : 's'} awaiting review` : 'No pending applications'}</p>
+      <button type="button" className="oh-up" onClick={load}><Icon name="spark" size={16} /> Refresh data</button>
     </div>
+  );
+  return (
+    <HubShell title="Admin console" user={admin} role={admin?.role || 'Admin'} groups={groups} footer={footer} storeKey="beeoak.web.adminSide"
+      onSignOut={() => { adminSession.clear(); notify('Signed out of admin'); nav('/admin/login', { replace: true }); }}
+      subtitle={toast && <div className={`toast ${toast.tone === 'err' ? 'err' : ''}`} role="status"><span className="dot" />{toast.message}</div>}>
+      {err && <div className="alert err" style={{ marginBottom: 16 }}><Icon name="info" />{err}</div>}
+      {!data ? <div className="app-loader" style={{ minHeight: 360 }}><span className="app-loader-logo"><img src="/logo.png" alt="" /></span><span className="app-loader-bar" /></div> : <Outlet context={{ data, reload: load, notify, isSuper: !!admin?.isSuperAdmin }} />}
+    </HubShell>
   );
 }
 
@@ -119,7 +121,7 @@ export function AdminOverview() {
   const paid = data.payments.filter((p) => p.verified && /success/i.test(p.status)).length;
   return (
     <>
-      <Head title="Overview" sub="Everything happening on BEE-OAK." />
+      <div className="ohd" style={{ marginBottom: 24 }}><h1>Welcome back, {String(adminSession.admin()?.name || 'Admin').split(' ')[0]}</h1><p className="ohd-sub">Everything happening on BEE-OAK right now.</p></div>
       <div className="kpis" style={{ marginTop: 0 }}>
         <div className="kpi"><small>Gross bookings</small><b>{money(revenue)}</b><i>{num(tickets)} tickets</i></div>
         <div className="kpi"><small>Users</small><b>{num(data.buyers.length)}</b><i>registered buyers</i></div>

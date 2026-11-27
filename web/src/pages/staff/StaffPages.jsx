@@ -8,6 +8,7 @@ import { customerLink, recruitLink, staffAllocate, staffConfirmPurchase, staffDa
 import { fmtDate, fmtINR } from '../../lib/utils';
 import { PageLoader } from '../Details';
 import { STAFF_LOGIN, appUrl } from '../../lib/env';
+import HubShell from '../../components/HubShell';
 
 const money = (n) => (Number(n || 0) === 0 ? '₹0' : fmtINR(n));
 const initials = (n) => String(n || '?').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -20,22 +21,36 @@ export function StaffLayout() {
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   if (!staffSession.token()) return <Navigate to={STAFF_LOGIN} replace />;
   const user = staffSession.user();
-  return (
-    <div className="cr-shell">
-      <header className="cr-top">
-        <div className="cr-top-in">
-          <Link to="/" className="brand"><img src="/logo.png" alt="" /><span className="brand-name">BEE<b>·</b>OAK</span></Link>
-          <span className="cr-mode staff"><Icon name="users" size={14} /> Staff</span>
-          <div className="cr-top-right">
-            {staffSession.memberships().length > 1 && <Link to="/staff" className="btn btn-ghost btn-sm">Switch event</Link>}
-            <span className="user-chip" style={{ cursor: 'default' }}><span className="avatar gold">{initials(user?.name)}</span><span>{user?.name || 'Staff'}</span></span>
-            <button className="btn btn-ghost btn-sm" onClick={() => { staffSession.clear(); notify('Signed out of staff mode'); nav(STAFF_LOGIN); }}><Icon name="logout" size={14} /> Sign out</button>
-          </div>
-        </div>
-      </header>
-      <main className="cr-main page-enter" style={{ margin: '0 auto' }} key={pathname}><Outlet /></main>
-      {toast && <div className={`toast ${toast.tone === 'err' ? 'err' : ''}`} role="status"><span className="dot" />{toast.message}</div>}
+  const list = staffSession.memberships();
+  const m = pathname.match(/\/staff\/m\/([^/]+)/);
+  const cur = m ? list.find((x) => String(x.memberId) === m[1]) : null;
+  const groups = [
+    ['Main menu', [
+      ...(cur ? [{ to: `/staff/m/${cur.memberId}`, label: 'Dashboard', icon: 'grid', end: true }] : []),
+      { to: '/staff', label: 'My events', icon: 'cal', end: true, badge: list.length },
+    ]],
+    ...(cur ? [['Selling', [
+      { hash: 'buy', label: 'Buy tickets', icon: 'ticket' },
+      { hash: 'share', label: 'Share & grow', icon: 'spark' },
+      { hash: 'bookings', label: 'Customer bookings', icon: 'file' },
+    ]], ['Team', [
+      { hash: 'team', label: 'Below-staff progress', icon: 'users' },
+      { hash: 'payments', label: 'Purchases & settlements', icon: 'card' },
+    ]]] : []),
+  ];
+  const footer = cur ? (
+    <div className="oh-credits">
+      <div className="oh-credits-h"><span>Your staff ID</span><b>{cur.staffCode}</b></div>
+      <p>{cur.eventName}</p>
+      <Link to="/staff" className="oh-up"><Icon name="cal" size={16} /> {list.length > 1 ? 'Switch event' : 'My events'}</Link>
     </div>
+  ) : null;
+  return (
+    <HubShell title="Staff hub" user={user} role={cur ? `Staff · ${cur.staffCode}` : 'Opportunity staff'} groups={groups} footer={footer} storeKey="beeoak.web.staffSide"
+      onSignOut={() => { staffSession.clear(); notify('Signed out of staff mode'); nav(STAFF_LOGIN); }}
+      subtitle={toast && <div className={`toast ${toast.tone === 'err' ? 'err' : ''}`} role="status"><span className="dot" />{toast.message}</div>}>
+      <Outlet />
+    </HubShell>
   );
 }
 
@@ -171,12 +186,12 @@ export function StaffDashboard() {
       <div className="pay-status"><Icon name="card" size={16} /> Payment status: <b>{p.paymentStatus}</b>{p.purchasePaid ? ` · ₹${p.purchasePaid.toLocaleString('en-IN')} paid to ${me.isPrimary ? 'organizer' : 'parent staff'}` : ''}{p.downstreamReceived ? ` · ₹${p.downstreamReceived.toLocaleString('en-IN')} received from your team` : ''}</div>
 
       <div className="dash-grid">
-        <div className="panel">
+        <div id="share" className="panel">
           <h3>Share & grow</h3>
           <ShareCard title="Customer booking link" sub="Customers who book through this link are credited to you." url={customerLink(event.id, me.referralCode)} whatsappText={`Book ${event.name} on BEE-OAK through me:`} />
           {settings.canRecruit && <ShareCard title="Staff recruitment link" sub={`Invite people to join under you (max ${settings.maxDirectRecruits} direct recruits).`} url={recruitLink(event.id, { ref: me.referralCode })} whatsappText={`Join my team for ${event.name} on BEE-OAK:`} />}
         </div>
-        <div className="panel">
+        <div id="buy" className="panel">
           <div className="panel-h"><h3>Buy tickets</h3><span className="muted" style={{ fontSize: 13 }}>from {me.isPrimary ? 'the organizer' : `${me.parentName || 'your parent staff'}`}</span></div>
           <p className="muted" style={{ fontSize: 13.5, marginTop: -6, marginBottom: 14 }}>Buy tickets, pay {me.isPrimary ? 'the organizer' : 'your parent staff'}, then sell them to customers through your profile and links.</p>
           <div className="buy-list">
@@ -194,7 +209,7 @@ export function StaffDashboard() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginTop: 24 }}>
+      <div id="team" className="panel" style={{ marginTop: 24 }}>
         <div className="panel-h"><h3>Below-staff progress</h3><span className="muted" style={{ fontSize: 13 }}>{team.length} member{team.length === 1 ? '' : 's'} in your downline</span></div>
         {team.length ? (
           <div className="team-table">
@@ -219,11 +234,11 @@ export function StaffDashboard() {
       </div>
 
       <div className="dash-grid">
-        <div className="panel">
+        <div id="bookings" className="panel">
           <h3>Customer bookings through you</h3>
           {d.bookings.length ? d.bookings.map((b) => <div key={b.id} className="line-item"><span>{b.buyer} · {b.tier} × {b.qty}</span><b>{money(b.amount)}</b></div>) : <p className="muted" style={{ fontSize: 14 }}>No bookings yet — share your customer link.</p>}
         </div>
-        <div className="panel">
+        <div id="payments" className="panel">
           <h3>Purchases & settlements</h3>
           {d.purchases.length ? d.purchases.map((x) => (
             <div key={x.id} className="line-item"><span>{x.direction === 'bought' ? `Bought from ${x.counterparty}` : `Sold to ${x.counterparty}`} · {x.qty} {x.tierName}</span><b>{money(x.total)} <span className={`status ${x.status === 'paid' ? 'up' : 'sbx'}`}>{x.status === 'paid' ? 'Paid' : 'Pending'}</span></b></div>
