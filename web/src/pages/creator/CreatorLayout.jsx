@@ -58,7 +58,7 @@ export default function CreatorLayout() {
     <div className={`cr-shell oh${side ? ' side-open' : ''}`}>
       <header className="cr-top oh-top">
         <div className="cr-top-in">
-          {creator && <button type="button" className="oh-burger" onClick={() => setSide((v) => !v)} aria-label="Toggle menu" aria-expanded={side}><Icon name="hub" size={22} /></button>}
+          {creator && <button type="button" className="oh-burger" onClick={() => setSide((v) => !v)} aria-label={side ? 'Close menu' : 'Open menu'} aria-expanded={side}><span className="oh-mi" aria-hidden="true"><i /><i /><i /></span></button>}
           <Link to={IS_PORTAL ? '/' : '/creator'} className="oh-brand"><b>BEE-OAK</b><small>Organizer hub</small></Link>
           {IS_SANDBOX && <span className="sandbox-pill" title="Publishing, staff, finance PIN and check-ins are simulated. The production database is not touched.">Sandbox</span>}
           <div className="cr-top-right">
