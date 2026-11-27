@@ -32,7 +32,6 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
   const plan = all.find((p) => p.id === pick) || all[0];
   const yearly = period === 'yearly';
   const price = plan.trial ? 0 : yearly ? plan.annualPrice : plan.monthlyPrice;
-  const maxSave = useMemo(() => Math.max(...plans.map((p) => Math.round((p.annualSaving / (p.monthlyPrice * 12)) * 100))), [plans]);
 
   const subscribe = async () => {
     setErr(''); setBusy(true);
@@ -60,14 +59,11 @@ export default function PlanWall({ plans, trial, trialAvailable, creditValue = 3
   return (
     <div className="pw">
       <div className="pw-head">
-        <span className="pw-spark" aria-hidden="true">
-          <svg width="46" height="46" viewBox="0 0 48 48" fill="currentColor"><path d="M22 4c1.4 9.6 6.4 14.6 16 16-9.6 1.4-14.6 6.4-16 16-1.4-9.6-6.4-14.6-16-16 9.6-1.4 14.6-6.4 16-16Z" /><path d="M38 30c.6 4 2.6 6 6.6 6.6-4 .6-6 2.6-6.6 6.6-.6-4-2.6-6-6.6-6.6 4-.6 6-2.6 6.6-6.6Z" opacity=".75" /></svg>
-        </span>
         <h1>BEE-OAK for organizers</h1>
         <p>Start free, then pick the plan that fits your events.</p>
         <div className="pw-toggle" role="radiogroup" aria-label="Billing period">
           <button type="button" role="radio" aria-checked={!yearly} className={!yearly ? 'on' : ''} onClick={() => setPeriod('monthly')}>Monthly</button>
-          <button type="button" role="radio" aria-checked={yearly} className={yearly ? 'on' : ''} onClick={() => setPeriod('yearly')}>Yearly <em>Save up to {maxSave}%</em></button>
+          <button type="button" role="radio" aria-checked={yearly} className={yearly ? 'on' : ''} onClick={() => setPeriod('yearly')}>Yearly</button>
         </div>
       </div>
 
