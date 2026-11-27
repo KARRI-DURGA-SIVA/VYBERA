@@ -56,7 +56,9 @@ export function AdminLayout() {
   const nav = useNavigate();
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
-  const admin = adminSession.admin();
+  const raw = adminSession.admin();
+  // Old account name from the BLAK Tickets era → show the BEE-OAK name.
+  const admin = raw && /blak\s*tickets|super\s*admin/i.test(raw.name || '') ? { ...raw, name: 'BEE-OAK Admin' } : raw;
   const load = useCallback(async () => {
     setErr('');
     try { setData(await adminSnapshot()); } catch (e) { if (e.status === 401) nav('/admin/login', { replace: true }); else setErr(e.message); }
@@ -121,7 +123,7 @@ export function AdminOverview() {
   const paid = data.payments.filter((p) => p.verified && /success/i.test(p.status)).length;
   return (
     <>
-      <div className="ohd" style={{ marginBottom: 24 }}><h1>Welcome back, {String(adminSession.admin()?.name || 'Admin').split(' ')[0]}</h1><p className="ohd-sub">Everything happening on BEE-OAK right now.</p></div>
+      <div className="ohd" style={{ marginBottom: 24 }}><h1>Welcome back, {/blak\s*tickets|super\s*admin/i.test(adminSession.admin()?.name || '') ? 'Admin' : String(adminSession.admin()?.name || 'Admin').split(' ')[0]}</h1><p className="ohd-sub">Everything happening on BEE-OAK right now.</p></div>
       <div className="kpis" style={{ marginTop: 0 }}>
         <div className="kpi"><small>Gross bookings</small><b>{money(revenue)}</b><i>{num(tickets)} tickets</i></div>
         <div className="kpi"><small>Users</small><b>{num(data.buyers.length)}</b><i>registered buyers</i></div>
