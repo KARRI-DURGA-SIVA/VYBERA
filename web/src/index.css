@@ -3280,3 +3280,13 @@ body::before { background: var(--cream); }
 /* Organizer hub: profile button without a background box */
 .oh-user { background: none !important; padding: 0 4px; }
 .oh-user:hover { opacity: .85; }
+/* Organizer hub: selected menu item in soft light green */
+.oh-side nav a.active { position: relative; background: #e2f0e7; color: #1d6141; font-weight: 700; }
+.oh-side nav a.active svg { color: #1d6141; }
+.oh-side nav a.active::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3.5px; border-radius: 0 4px 4px 0; background: #1d6141; }
+.oh-side nav a.active .oh-count { background: #c9e3d3; color: #1d6141; }
+.oh-side nav a.active .oh-badge { background: #fdf0c9; color: #8a5a00; }
+.oh-side nav a:hover:not(.active) { background: #f0f4ef; }
+:root[data-theme="dark"] .oh-side nav a.active { background: rgba(120, 200, 150, .14); color: #bfe8cf; }
+:root[data-theme="dark"] .oh-side nav a.active svg { color: #bfe8cf; }
+:root[data-theme="dark"] .oh-side nav a.active::before { background: #8fd3ab; }
