@@ -3388,3 +3388,23 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .bm-line i { display: none; }
   .bm-line span:last-child { flex: 0 0 100%; max-width: 100%; }
 }
+
+/* Sidebar-panel menu icon (rounded square + divider), animated */
+.oh-pi { position: relative; display: block; width: 22px; height: 19px; border: 2.2px solid #fff; border-radius: 5px; overflow: hidden; transition: transform .3s var(--ease); }
+.oh-pi::before { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 7px; background: rgba(226, 185, 76, .0); transition: width .4s cubic-bezier(.6, 0, .2, 1), background .3s ease; }
+.oh-pi i { position: absolute; top: 0; bottom: 0; left: 7px; width: 2.2px; background: #fff; transition: left .4s cubic-bezier(.6, 0, .2, 1), opacity .3s; }
+.side-open .oh-pi::before { width: 7px; background: rgba(226, 185, 76, .55); }
+.side-open .oh-pi i { left: 7px; }
+.oh:not(.side-open) .oh-pi::before { width: 0; }
+.oh:not(.side-open) .oh-pi i { left: 2px; opacity: .9; }
+.oh-burger:hover .oh-pi { transform: scale(1.06); }
+.oh-burger:active .oh-pi { transform: scale(.9); }
+
+/* Phone: sidebar drawer fills the full screen height under the header */
+@media (max-width: 900px) {
+  .oh-side { top: 64px !important; bottom: 0 !important; height: calc(100dvh - 64px) !important; max-height: none !important; overflow-y: auto; justify-content: space-between !important; padding-bottom: calc(18px + env(safe-area-inset-bottom)) !important; }
+}
+.oh:not(.side-open) .oh-pi i { left: 6px; opacity: 1; }
+.oh:not(.side-open) .oh-pi::before { width: 0; }
+.side-open .oh-pi i { left: 8px; }
+.side-open .oh-pi::before { width: 8px; }
