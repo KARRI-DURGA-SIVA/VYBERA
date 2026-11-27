@@ -2853,3 +2853,21 @@ body::before { background: var(--cream); }
   .pw-perks ul { grid-template-columns: 1fr; }
   .pw-perks li { font-size: 13.5px; }
 }
+
+/* Plan screen: no outer dark panel — sections sit on the page with clear gaps */
+.pw:not(.pw-done) { background: none; box-shadow: none; padding: 8px 0 24px; border-radius: 0; color: var(--ink); }
+.pw:not(.pw-done) .pw-head h1 { color: var(--ink); }
+.pw:not(.pw-done) .pw-head p, .pw:not(.pw-done) .pw-fine { color: var(--ink-2); }
+.pw:not(.pw-done) .pw-spark { color: #6f8fe0; }
+.pw:not(.pw-done) .pw-toggle { background: var(--cream-2); }
+.pw:not(.pw-done) .pw-toggle button { color: var(--ink-2); }
+.pw:not(.pw-done) .pw-toggle button.on { background: #1d1f1e; color: #f2f0ea; box-shadow: none; }
+.pw:not(.pw-done) .pw-cards { gap: 22px; margin-top: 40px; }
+.pw:not(.pw-done) .pw-c { box-shadow: 0 18px 34px -22px rgba(0, 0, 0, .55); }
+.pw:not(.pw-done) .pw-perks { margin-top: 36px; box-shadow: 0 18px 34px -24px rgba(0, 0, 0, .5); }
+.pw:not(.pw-done) .pw-cta { margin-top: 30px; }
+.pw:not(.pw-done) .pw-cta.white { background: #1d1f1e; color: #f2f0ea; }
+:root[data-theme="dark"] .pw:not(.pw-done) .pw-toggle button.on { background: #f2f0ea; color: #1d1f1e; }
+:root[data-theme="dark"] .pw:not(.pw-done) .pw-cta.white { background: #fff; color: #111; }
+@media (max-width: 640px) { .pw:not(.pw-done) .pw-cards { gap: 16px 12px; margin-top: 30px; } .pw:not(.pw-done) .pw-perks { margin-top: 26px; } }
+.pw:not(.pw-done) .pw-perks { color: var(--pw-ink); }
