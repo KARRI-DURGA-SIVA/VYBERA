@@ -4,8 +4,7 @@ import Icon from '../../components/Icon';
 import { Poster } from '../../components/EventCard';
 import { useApp } from '../../lib/store';
 import { useCreator } from '../../lib/creatorStore';
-import { analytics, creatorSession, myEvents, planStatus, scanLog, unlockFinance } from '../../lib/creator';
-import { mediaUrl } from '../../lib/api';
+import { analytics, creatorSession, myEvents, planStatus, unlockFinance } from '../../lib/creator';
 import { fmtDate, fmtINR, isPast } from '../../lib/utils';
 import { PageLoader } from '../Details';
 
@@ -92,136 +91,34 @@ export function RevenueBars({ events }) {
   );
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// Tickets sold per month of this year (by event date).
-function SalesChart({ events, stats }) {
-  const year = new Date().getFullYear();
-  const byId = Object.fromEntries((stats?.events || []).map((e) => [e.id, e]));
-  const months = Array(12).fill(0);
-  events.forEach((e) => {
-    const d = new Date(e.date);
-    if (!Number.isNaN(d.getTime()) && d.getFullYear() === year) months[d.getMonth()] += Number((byId[e.id] || {}).tickets ?? e.bookingCount ?? 0);
-  });
-  const max = Math.max(...months);
-  const now = new Date().getMonth();
-  return (
-    <div className="cd-chart">
-      <div className="cd-chart-h"><b>Tickets sold</b><span>· by event month, {year}</span></div>
-      <div className="cd-bars">
-        {months.map((v, i) => (
-          <div key={MONTHS[i]} className={`cd-bar${i === now ? ' now' : ''}`} title={`${MONTHS[i]}: ${v} tickets`}>
-            <span className="cd-bar-track"><i style={{ height: `${max ? Math.max(4, (v / max) * 100) : 0}%` }} /></span>
-            <small>{MONTHS[i]}</small>
-          </div>
-        ))}
-      </div>
-      {!max && (
-        <div className="cd-chart-empty">
-          <b>Ready to sell?</b>
-          <p><em>No sales yet.</em> Publish an event and your ticket sales will show here month by month.</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Tile({ to, icon, title, sub, tone = '' }) {
-  return (
-    <Link to={to} className={`cd-tile ${tone}`}>
-      <span className="cd-tile-ic"><Icon name={icon} size={22} /></span>
-      <span><b>{title}</b><small>{sub}</small></span>
-    </Link>
-  );
-}
-
 export default function CreatorDashboard() {
-  const { creator, financeOpen, setFinanceOpen } = useCreator();
-  const { data, err, reload } = useCreatorData();
+  const { creator, financeOpen } = useCreator();
+  const { data, err } = useCreatorData();
   const [plan, setPlan] = useState(null);
   useEffect(() => { if (!String(creatorSession.token()).startsWith('sandbox.')) planStatus().then(setPlan).catch(() => setPlan(null)); }, []);
-  const scans = scanLog(creator);
   if (!data) return <PageLoader />;
   const { events, stats } = data;
-  const live = events.filter((e) => e.status === 'live' && !isPast(e));
-  const cap = events.reduce((s, e) => s + Number(e.capacity || 0), 0);
+  const gross = stats?.summary.gross || 0;
   const sold = stats?.summary.tickets || 0;
-  const today = new Date().toDateString();
-  const checkins = scans.filter((s) => s.result === 'valid' && new Date(s.at).toDateString() === today).length;
-  const next = [...live].sort((x, y) => String(x.date).localeCompare(String(y.date)))[0];
-  const sub = plan?.subscription; const credits = plan?.credits;
-  const hasOpp = events.some((e) => e.isOpportunity);
-
+  const sub = plan?.subscription; const cr = plan?.credits;
+  const issued = sub && cr ? cr.consumed : sold;
+  const pct = sub && cr?.allocated ? (cr.consumed / cr.allocated) * 100 : null;
   return (
-    <div className="cd">
-      <div className="cd-top">
-        <h1>Welcome back, <b>{creator.name}</b> <span aria-hidden="true">👋</span></h1>
-        <div className="cd-top-r">
-          {credits && <span className="cd-pts" title="Ticket credits left"><Icon name="ticket" size={15} /> {credits.remaining.toLocaleString('en-IN')} credits</span>}
-          <button className="btn btn-ghost btn-sm" onClick={reload}><Icon name="spark" size={14} /> Refresh</button>
-        </div>
-      </div>
-      {err && <div className="alert err" style={{ marginBottom: 18 }}><Icon name="info" />{err}</div>}
-
-      <div className="cd-hero-row">
-        <section className="cd-hero">
-          <div className="cd-hero-l">
-            <span className="cd-kicker"><i />{sub ? 'Your plan' : 'Organizer plans'} <em>{sub ? sub.plan : 'Free trial'}</em></span>
-            <h2>{sub ? 'Keep your events selling' : 'Start selling tickets'}</h2>
-            <p>{sub ? `${credits.remaining.toLocaleString('en-IN')} of ${credits.allocated.toLocaleString('en-IN')} ticket credits left · ${sub.billingPeriod === 'trial' ? 'trial ends' : 'renews'} ${new Date(sub.renewalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.` : 'Choose a plan — or start a ₹0 free trial — to publish events and issue QR tickets.'}</p>
-            <ul>
-              <li><Icon name="check" size={15} /> 1 credit = 1 ticket issued</li>
-              <li><Icon name="check" size={15} /> Free QR check-ins</li>
-              <li><Icon name="check" size={15} /> ₹0 platform fee</li>
-            </ul>
-            <Link to="/creator/plans" className="cd-hero-btn">{sub ? 'Upgrade plan' : 'See plans'} <Icon name="arrowR" size={15} /></Link>
-          </div>
-          <div className="cd-hero-r">
-            <span className="cd-label">{next ? 'Up next' : 'Your first event'}</span>
-            <Link to={next ? '/creator/events' : '/creator/create'} className="cd-next">
-              {next?.banner ? <img src={mediaUrl(next.banner)} alt="" /> : <span className="cd-next-ph"><Icon name="cal" size={34} /></span>}
-              <span className="cd-next-go"><Icon name={next ? 'chevR' : 'edit'} size={20} /></span>
-            </Link>
-            <small className="cd-caption">{next ? `${next.name} · ${fmtDate(next.date)}` : 'Create an event and it will show here'}</small>
-          </div>
-        </section>
-        <SalesChart events={events} stats={stats} />
-      </div>
-
-      <div className="cd-stats">
-        <div><small>Tickets sold</small><b>{sold.toLocaleString('en-IN')}</b></div>
-        <div><small>Live events</small><b>{live.length}</b><i>{events.length} total</i></div>
-        <div><small>Check-ins today</small><b>{checkins}</b></div>
-        <div><small>Conversion</small><b>{cap ? Math.round((sold / cap) * 100) : 0}%</b><i>of capacity</i></div>
-      </div>
-
-      <div className="cd-board">
-        <div className="cd-sec"><span className="dot g" />Create</div>
-        <div className="cd-tiles">
-          <Tile to="/creator/create" icon="edit" title="Create event" sub="Banner, tickets and go live" />
-          <Tile to="/creator/events" icon="cal" title="My events" sub="Everything you’ve published" />
-          <Tile to="/creator/plans" icon="spark" title="Upgrade plan" sub="Credits, features and billing" tone="gold" />
-          <Tile to="/creator/scanner" icon="qr" title="QR scanner" sub="Check guests in at the gate" />
-        </div>
-        <div className="cd-sec"><span className="dot b" />Grow</div>
-        <div className="cd-tiles">
-          <Tile to="/creator/staff" icon="users" title="Staff" sub="Add team, assign tickets" />
-          <Tile to={hasOpp ? `/creator/opportunity/${encodeURIComponent(events.find((e) => e.isOpportunity).id)}` : '/creator/create'} icon="shield" title="Opportunity network" sub={hasOpp ? 'Staff hierarchy and sales' : 'Create an Opportunity event'} />
-          <Tile to="/creator/revenue" icon="card" title="Revenue" sub="Payouts and ticket sales" />
-          <Tile to="/creator/events" icon="ticket" title="Bookings" sub="Who bought, per event" />
-        </div>
-        <div className="cd-sec"><span className="dot o" />Money</div>
-        <div className="cd-money">
-          {financeOpen ? (
-            <div className="fin-row">
-              <div><small>Gross revenue</small><b>{money(stats?.summary.gross)}</b></div>
-              <div><small>Platform fee</small><b>{money(stats?.summary.fee)}</b></div>
-              <div><small>Net payout</small><b className="g">{money(stats?.summary.net)}</b></div>
-            </div>
-          ) : <PinGate onOpen={() => setFinanceOpen(true)} />}
-        </div>
-        <div className="cd-sec"><span className="dot k" />Your events<Link to="/creator/events" className="see-all">All events <Icon name="chevR" size={14} /></Link></div>
-        <div className="cd-money"><EventTable events={events.slice(0, 5)} stats={stats} /></div>
+    <div className="ohd">
+      <h1>Welcome back, {creator.name.split(' ')[0]}</h1>
+      <p className="ohd-sub">Here is the latest live performance of your event portfolio.</p>
+      {err && <div className="alert err" style={{ marginTop: 18 }}><Icon name="info" />{err}</div>}
+      <div className="ohd-cards">
+        <Link to="/creator/revenue" className="ohd-card">
+          <span className="ohd-card-h"><span>Total Revenue</span><i><Icon name="card" size={22} /></i></span>
+          <b className="ohd-num">{financeOpen ? money(gross) : '₹ • • • • •'}</b>
+          <span className="ohd-foot up">{financeOpen ? <><Icon name="trend" size={16} /> {sold.toLocaleString('en-IN')} tickets across {events.length} event{events.length === 1 ? '' : 's'}</> : <><Icon name="lock" size={15} /> Unlock with your finance PIN</>}</span>
+        </Link>
+        <Link to="/creator/plans" className="ohd-card">
+          <span className="ohd-card-h"><span>Tickets Issued</span><i className="t"><Icon name="ticket" size={22} /></i></span>
+          <b className="ohd-num">{issued.toLocaleString('en-IN')}{sub && cr ? <small>/{cr.allocated.toLocaleString('en-IN')}</small> : null}</b>
+          <span className="ohd-foot"><Icon name="bolt" size={16} /> {pct !== null ? `${pct.toFixed(1)}% credits used` : 'No active plan — start a free trial'}</span>
+        </Link>
       </div>
     </div>
   );
