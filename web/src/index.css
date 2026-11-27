@@ -3277,3 +3277,6 @@ body::before { background: var(--cream); }
 .side-open .oh-burger:hover .oh-mi i:nth-child(2) { width: 16px; transform: translateX(4px); }
 .oh-burger .oh-mi { transition: transform .3s; }
 .oh-burger:active .oh-mi { transform: scale(.88); }
+/* Organizer hub: profile button without a background box */
+.oh-user { background: none !important; padding: 0 4px; }
+.oh-user:hover { opacity: .85; }
