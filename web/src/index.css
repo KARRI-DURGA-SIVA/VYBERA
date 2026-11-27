@@ -3078,3 +3078,4 @@ body::before { background: var(--cream); }
 :root[data-theme="dark"] .ck-qr-box { background: #fff; }
 :root[data-theme="dark"] .ck-btn { background: var(--btn-bg); color: var(--btn-ink); }
 .ck-scrim { z-index: 400 !important; }
+.ad-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: #1d7a4c; }

@@ -154,8 +154,17 @@ export function AdminCreators() {
   const [open, setOpen] = useState(null);
   const count = (t) => (t === 'All' ? data.creators.length : data.creators.filter((c) => String(c.status).toLowerCase() === t.toLowerCase()).length);
   const status = act((c, s) => setCreatorStatus(c.creatorId, s), reload, notify, 'Creator status updated');
-  const doc = act((c, d, s) => setDocumentStatus(c.creatorId, d.id, s), reload, notify, 'Document updated');
-  const verifyAll = act(async (c) => { for (const d of c.documents) if (d.verificationStatus !== 'Verified') await setDocumentStatus(c.creatorId, d.id, 'Verified'); }, reload, notify, 'All documents verified');
+  const doc = async (c, d, st) => {
+    try { const r = await setDocumentStatus(c.creatorId, d.id, st); notify(r.creatorStatus === 'Approved' ? `${c.name} verified — they can now sign in to creator mode` : 'Document updated'); await reload(); } catch (e) { notify(e.message, 'err'); }
+  };
+  // One step: verify every document and give the creator sign-in access.
+  const grant = async (c) => {
+    try {
+      for (const d of c.documents) if (d.verificationStatus !== 'Verified') await setDocumentStatus(c.creatorId, d.id, 'Verified');
+      if (!/approved/i.test(c.status)) await setCreatorStatus(c.creatorId, 'Approved');
+      notify(`${c.name} verified — they can now sign in with their email and password`); await reload();
+    } catch (e) { notify(e.message, 'err'); }
+  };
   return (
     <>
       <Head title="Creators & KYC" sub="Review applications, verify KYC documents and give approved creators access to sign in." q={q} setQ={setQ} />
@@ -180,9 +189,9 @@ export function AdminCreators() {
                   <div className="ad-steps">
                     <span className="done">1 · Applied {when(c.createdAt)}</span>
                     <span className={allOk ? 'done' : ''}>2 · Documents verified ({verified}/{c.documents.length})</span>
-                    <span className={/approved/i.test(c.status) ? 'done' : ''}>3 · {/approved/i.test(c.status) ? 'Approved — can sign in' : 'Approve to allow sign-in'}</span>
+                    <span className={/approved/i.test(c.status) ? 'done' : ''}>3 · {/approved/i.test(c.status) ? 'Access given — can sign in' : 'Give sign-in access'}</span>
                   </div>
-                  <div className="ad-doc-h"><b>KYC documents</b>{isSuper && c.documents.length > 0 && !allOk && <button className="btn btn-ghost btn-sm" onClick={() => verifyAll(c)}>Verify all documents</button>}</div>
+                  <div className="ad-doc-h"><b>KYC documents</b></div>
                   {c.documents.length ? c.documents.map((d) => (
                     <div key={d.id} className="ad-doc">
                       <span><b>{String(d.documentType || 'Document').toUpperCase()}</b><small>{d.fileName} · {when(d.createdAt)}</small></span>
@@ -195,11 +204,12 @@ export function AdminCreators() {
                   )) : <p className="muted">No documents submitted.</p>}
                   {isSuper && (
                     <div className="ad-btns">
-                      <button className="btn btn-primary btn-sm" disabled={!allOk || /approved/i.test(c.status)} title={allOk ? '' : 'Verify every document first'} onClick={() => status(c, 'Approved')}>Approve & give access</button>
+                      {!/approved/i.test(c.status) && <button className="btn btn-primary btn-sm" disabled={!c.documents.length} onClick={() => grant(c)}>{allOk ? 'Give sign-in access' : 'Verify & give access'}</button>}
+                      {/approved/i.test(c.status) && <span className="ad-ok"><Icon name="check" size={16} /> Can sign in to creator mode</span>}
                       {!/pending/i.test(c.status) && <button className="btn btn-ghost btn-sm" onClick={() => status(c, 'Pending')}>Set pending</button>}
                       {!/rejected/i.test(c.status) && <button className="btn btn-ghost btn-sm" onClick={() => status(c, 'Rejected')}>Reject</button>}
                       {!/suspended/i.test(c.status) && <button className="btn btn-ghost btn-sm ad-danger" onClick={() => status(c, 'Suspended')}>Suspend</button>}
-                      {!allOk && <small className="muted">Verify every document to enable approval.</small>}
+                      {!c.documents.length && <small className="muted">No documents submitted — ask the creator to apply again with KYC documents.</small>}
                     </div>
                   )}
                 </div>
